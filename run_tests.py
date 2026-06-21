@@ -23,6 +23,8 @@ shim.fixture = lambda *a, **k: (lambda fn: fn)   # no-op; fixtures only used in 
 sys.modules["pytest"] = shim
 
 sys.path.insert(0, ".")
+import os
+os.environ.setdefault("CITYSCOPE_DEMO_MODE", "true")  # tests use mock sources
 from cityscope.core.logging_setup import configure_logging
 configure_logging("ERROR")
 

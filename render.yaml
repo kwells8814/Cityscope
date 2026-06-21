@@ -14,7 +14,9 @@ services:
       - key: CITYSCOPE_LIVE_BLUESKY
         value: "true"         # real Bluesky chatter (no keys, no approval)
       - key: CITYSCOPE_LIVE_REDDIT
-        value: "false"        # needs the REDDIT_* secrets below to be set
+        value: "false"        # Reddit API effectively closed; stays off
+      - key: CITYSCOPE_DEMO_MODE
+        value: "false"        # production: no synthetic data, only real sources
       - key: CITYSCOPE_LOG_LEVEL
         value: "INFO"
       # Set these in the Render dashboard (Environment) if going live with Reddit:

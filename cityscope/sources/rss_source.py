@@ -137,8 +137,11 @@ class RSSSource(Source):
                 logger.warning("RSS fetch failed for %s: %s", city, exc)
                 return FetchResult(self.name, [], "error",
                                    f"{paper} feed unavailable.")
-        else:
+        elif settings.demo_mode:
             entries = _mock_entries(city, paper)
+        else:
+            # production with RSS off: contribute nothing (no fake data)
+            return FetchResult(self.name, [], "skipped", "Local paper is off.")
         posts = [_to_post(e, i, city, paper) for i, e in enumerate(entries)]
         return FetchResult(self.name, posts, "ok" if posts else "none",
                            f"From {paper}." if posts else f"{paper} had nothing.",

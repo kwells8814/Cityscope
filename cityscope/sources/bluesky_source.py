@@ -191,8 +191,11 @@ class BlueskySource(Source):
             except Exception as exc:
                 logger.warning("bluesky fetch failed for %s: %s", city, exc)
                 return FetchResult(self.name, [], "error", "Bluesky unavailable.")
-        else:
+        elif settings.demo_mode:
             posts = _search_mock(city)
+        else:
+            # production with Bluesky off: contribute nothing (no fake data)
+            return FetchResult(self.name, [], "skipped", "Bluesky is off.")
         status = "ok" if posts else "none"
         note = (f"From Bluesky ({len(posts)} posts)." if posts
                 else "No Bluesky chatter found.")

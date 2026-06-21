@@ -60,16 +60,23 @@ class RedditSource(Source):
             return FetchResult(self.name, [], "none", disc["note"])
 
         subs = disc["subreddits"]
-        if settings.use_live_reddit:
-            posts, seen = [], set()
-            for sub in subs:
-                for d in self._backend.fetch_listing(sub, "new", 50):
-                    p = _normalise_live(d)
-                    if p.id and p.id not in seen:
-                        seen.add(p.id)
-                        posts.append(p)
-        else:
-            posts = generate_posts(city, subs, disc["candidates"])
+        if not settings.use_live_reddit:
+            if settings.demo_mode:
+                # explicit demo mode: synthesize sample posts
+                posts = generate_posts(city, subs, disc["candidates"])
+                return FetchResult(self.name, posts, disc["status"],
+                                   disc["note"], {"subreddits": subs})
+            # production: off means honestly empty, no fabricated data
+            return FetchResult(self.name, [], "skipped",
+                               "Reddit is off.", {"subreddits": subs})
+
+        posts, seen = [], set()
+        for sub in subs:
+            for d in self._backend.fetch_listing(sub, "new", 50):
+                p = _normalise_live(d)
+                if p.id and p.id not in seen:
+                    seen.add(p.id)
+                    posts.append(p)
 
         return FetchResult(self.name, posts, disc["status"], disc["note"],
                            {"subreddits": subs})
