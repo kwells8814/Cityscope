@@ -1,0 +1,17 @@
+# core API
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.6
+
+# data layer
+sqlalchemy>=2.0
+alembic>=1.13
+psycopg[binary]>=3.1      # Postgres driver (psycopg 3)
+redis>=5.0                # shared cache
+
+# live data (optional but recommended)
+feedparser>=6.0
+
+# dev / tests
+pytest>=8.0
+httpx>=0.27

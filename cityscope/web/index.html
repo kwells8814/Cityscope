@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CityScope — tap in</title>
+<!-- PWA: installable, home-screen icon, fullscreen on launch -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#252A34">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CityScope">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="Cool things happening in any city, from forum chatter and local papers.">
+<style>
+  /* respect the iPhone notch / safe areas in standalone mode */
+  body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+</style>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=Archivo+Narrow:wght@500;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  :root{
+    /* dark-mode neon palette */
+    --ink:#EAEAEA; --ink-soft:#9aa0aa;          /* text on dark */
+    --paper:#252A34; --paper-2:#2e343f;          /* charcoal bg + grid/surface */
+    --amber:#08D9D6; --teal:#F0A500; --rose:#FF2E63;  /* events / gems / happenings */
+    --line:#3a414d; --stamp:#6b7280;             /* borders + postmarks */
+    --on-accent:#1b1f27;                          /* dark text on bright cyan/gold */
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:'Archivo',system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(var(--paper-2) 1px,transparent 1px);
+    background-size:22px 22px;
+  }
+  .screen{display:none;min-height:100%}
+  .screen.active{display:block}
+
+  /* ============ SCREEN 1: THE DOOR ============ */
+  #door{
+    display:none;min-height:100vh;
+    flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:32px;position:relative;overflow:hidden;
+  }
+  #door.active{display:flex}
+  .door-mark{
+    font-weight:900;font-size:clamp(40px,11vw,96px);line-height:.85;
+    letter-spacing:-.04em;font-stretch:condensed;margin-bottom:10px;
+  }
+  .door-mark .scope{color:var(--amber)}
+  .door-sub{
+    font-family:'Archivo Narrow',sans-serif;font-size:clamp(15px,3vw,20px);
+    color:var(--ink-soft);max-width:30ch;margin:0 auto 48px;line-height:1.4;
+  }
+  /* the big button */
+  .tapin{
+    --r:128px;width:var(--r);height:var(--r);border-radius:50%;
+    border:3px solid var(--amber);background:var(--amber);color:var(--on-accent);
+    font-family:'Archivo',sans-serif;font-weight:900;font-size:21px;
+    letter-spacing:-.01em;cursor:pointer;position:relative;
+    display:flex;align-items:center;justify-content:center;
+    transition:transform .12s ease, background .2s ease, color .2s ease;
+  }
+  .tapin:hover{background:#3ee9e6;border-color:#3ee9e6;color:var(--on-accent);transform:scale(1.04)}
+  .tapin:active{transform:scale(.97)}
+  .tapin::before,.tapin::after{
+    content:"";position:absolute;inset:-3px;border-radius:50%;
+    border:2px solid var(--ink);opacity:.0;
+  }
+  .tapin-wrap{position:relative;display:inline-flex}
+  .tapin-wrap::after{
+    content:"";position:absolute;inset:-10px;border-radius:50%;
+    border:2px solid var(--amber);animation:ring 2.4s ease-out infinite;pointer-events:none;
+  }
+  @keyframes ring{0%{transform:scale(.85);opacity:.7}100%{transform:scale(1.5);opacity:0}}
+  .door-foot{
+    position:absolute;bottom:26px;left:0;right:0;
+    font-family:'JetBrains Mono',monospace;font-size:11px;
+    text-transform:uppercase;letter-spacing:.14em;color:var(--stamp);
+  }
+
+  /* ============ SCREEN 2: LOCATE ============ */
+  #locate{padding:32px;min-height:100vh;display:none;flex-direction:column;justify-content:center;max-width:560px;margin:0 auto}
+  #locate.active{display:flex}
+  .back{
+    background:none;border:none;font-family:'JetBrains Mono',monospace;font-size:12px;
+    color:var(--ink-soft);cursor:pointer;letter-spacing:.06em;padding:0;margin-bottom:34px;
+    position:absolute;top:28px;left:28px;
+  }
+  .back:hover{color:var(--ink)}
+  .locate-h{font-weight:900;font-size:clamp(28px,6vw,44px);letter-spacing:-.02em;line-height:1;margin-bottom:8px}
+  .locate-d{font-family:'Archivo Narrow',sans-serif;font-size:17px;color:var(--ink-soft);margin-bottom:34px}
+
+  .gps{
+    width:100%;display:flex;align-items:center;gap:14px;
+    background:var(--amber);color:var(--on-accent);border:3px solid var(--amber);
+    padding:20px 22px;cursor:pointer;font-family:'Archivo',sans-serif;
+    font-weight:900;font-size:19px;letter-spacing:-.01em;margin-bottom:22px;
+    transition:background .15s ease,color .15s ease;
+  }
+  .gps:hover{background:#3ee9e6;border-color:#3ee9e6;color:var(--on-accent)}
+  .gps svg{flex:0 0 auto}
+  .gps small{display:block;font-family:'Archivo Narrow',sans-serif;font-weight:500;font-size:13px;opacity:.7;letter-spacing:0}
+
+  .or{display:flex;align-items:center;gap:14px;margin:6px 0 22px;
+    font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--stamp);
+    text-transform:uppercase;letter-spacing:.16em}
+  .or::before,.or::after{content:"";height:1px;background:var(--line);flex:1}
+
+  .entry{display:flex;gap:10px;margin-bottom:14px}
+  .ac-wrap{position:relative;flex:1;min-width:0}
+  .entry input{
+    width:100%;font-family:'Archivo',sans-serif;font-weight:700;font-size:17px;
+    background:var(--paper);border:2px solid var(--ink);color:var(--ink);
+    padding:13px 15px;border-radius:0;min-width:0;
+  }
+  #zipInput{flex:1}
+  .entry input::placeholder{color:var(--stamp);font-weight:500}
+  /* autocomplete dropdown */
+  .ac-list{
+    position:absolute;left:0;right:0;top:100%;z-index:50;
+    background:var(--paper-2);border:2px solid var(--amber);border-top:none;
+    max-height:280px;overflow-y:auto;display:none;
+  }
+  .ac-list.open{display:block}
+  .ac-item{
+    padding:11px 15px;cursor:pointer;display:flex;align-items:baseline;gap:8px;
+    border-bottom:1px solid var(--line);
+  }
+  .ac-item:last-child{border-bottom:none}
+  .ac-item .ac-city{font-family:'Archivo',sans-serif;font-weight:700;font-size:16px;color:var(--ink)}
+  .ac-item .ac-state{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--amber);font-weight:700}
+  .ac-item .ac-dupe{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--stamp);margin-left:auto;text-transform:uppercase;letter-spacing:.06em}
+  .ac-item:hover,.ac-item.active{background:var(--amber)}
+  .ac-item:hover .ac-city,.ac-item.active .ac-city{color:var(--on-accent)}
+  .ac-item:hover .ac-state,.ac-item.active .ac-state{color:var(--on-accent)}
+  .ac-item:hover .ac-dupe,.ac-item.active .ac-dupe{color:var(--on-accent)}
+  .entry button{
+    font-family:'Archivo',sans-serif;font-weight:900;font-size:16px;
+    background:var(--amber);color:var(--on-accent);border:2px solid var(--amber);
+    padding:0 20px;cursor:pointer;transition:background .15s ease,color .15s ease;
+  }
+  .entry button:hover{background:#3ee9e6;border-color:#3ee9e6;color:var(--on-accent)}
+  .hint{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--stamp);margin-top:4px}
+  .locate-msg{font-family:'Archivo Narrow',sans-serif;font-size:15px;color:var(--rose);margin-top:16px;min-height:20px}
+
+  /* ============ SCREEN 3: FEED ============ */
+  #feed-screen{display:none}
+  #feed-screen.active{display:block}
+  .fhead{
+    border-bottom:2px solid var(--ink);max-width:1180px;margin:0 auto;
+    padding:22px clamp(18px,5vw,56px) 0;
+  }
+  .fhead-top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;justify-content:space-between}
+  .fmark{font-weight:900;font-size:28px;letter-spacing:-.03em;cursor:pointer}
+  .fmark .scope{color:var(--amber)}
+  .change{
+    font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;
+    letter-spacing:.1em;background:none;border:1.5px solid var(--line);color:var(--ink-soft);
+    padding:7px 12px;cursor:pointer;border-radius:100px;transition:all .12s}
+  .change:hover{border-color:var(--ink);color:var(--ink)}
+  .place{
+    font-weight:900;font-size:clamp(26px,5vw,42px);letter-spacing:-.02em;
+    margin:18px 0 4px;line-height:1;
+  }
+  .src-note{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--stamp);
+    letter-spacing:.04em;margin-bottom:18px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .src-note .badge{border:1px solid var(--line);padding:2px 7px;border-radius:3px}
+
+  .chips{display:flex;gap:8px;flex-wrap:wrap;padding:0 0 20px}
+  .chip{
+    font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;
+    text-transform:uppercase;letter-spacing:.08em;border:1.5px solid var(--line);
+    background:transparent;color:var(--ink-soft);padding:6px 12px;cursor:pointer;
+    border-radius:100px;transition:all .12s}
+  .chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .chip[data-cat="event"][aria-pressed="true"]{background:var(--amber);border-color:var(--amber);color:var(--on-accent)}
+  .chip[data-cat="gem"][aria-pressed="true"]{background:var(--teal);border-color:var(--teal);color:var(--on-accent)}
+  .chip[data-cat="news"][aria-pressed="true"]{background:var(--rose);border-color:var(--rose);color:#fff}
+
+  main{max-width:1180px;margin:0 auto;padding:24px clamp(18px,5vw,56px) 80px}
+  .count{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-soft);margin-bottom:20px;letter-spacing:.04em}
+  .feed{display:grid;gap:18px;grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
+
+  .card{position:relative;background:var(--paper);border:2px solid var(--ink);
+    padding:20px 20px 16px;display:flex;flex-direction:column;transition:transform .12s ease, box-shadow .12s ease}
+  .card:hover{transform:translate(-3px,-3px);box-shadow:5px 5px 0 var(--amber)}
+  .card a.wrap{text-decoration:none;color:inherit;display:flex;flex-direction:column;gap:12px;height:100%}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px}
+  .card[data-cat="event"]::before{background:var(--amber)}
+  .card[data-cat="gem"]::before{background:var(--teal)}
+  .card[data-cat="news"]::before{background:var(--rose)}
+  .kicker{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.13em}
+  .card[data-cat="event"] .kicker{color:var(--amber)}
+  .card[data-cat="gem"] .kicker{color:var(--teal)}
+  .card[data-cat="news"] .kicker{color:var(--rose)}
+  .title{font-weight:700;font-size:19px;line-height:1.18;letter-spacing:-.01em}
+  .summary{font-family:'Archivo Narrow',sans-serif;font-size:15px;line-height:1.42;color:var(--ink-soft);margin-top:-2px}
+  .meta{margin-top:auto;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding-top:8px;border-top:1px dashed var(--line)}
+  .pill{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:500;padding:3px 8px;
+    border:1px solid var(--line);border-radius:3px;color:var(--ink-soft);display:inline-flex;align-items:center;gap:5px}
+  .pill.when{border-color:var(--ink);color:var(--ink);font-weight:700}
+  .pill.free{background:var(--teal);color:var(--on-accent);border-color:var(--teal)}
+  .live{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);position:relative}
+  .dot::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1.5px solid var(--amber);animation:pulse 1.6s ease-out infinite}
+  @keyframes pulse{0%{transform:scale(.7);opacity:.9}100%{transform:scale(1.9);opacity:0}}
+  .stamp{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.08em;color:var(--stamp);border:1.5px solid var(--stamp);padding:2px 7px;border-radius:2px;transform:rotate(-2deg);margin-left:auto}
+  .stamp.paper{color:var(--rose);border-color:var(--rose);transform:rotate(1.5deg)}
+
+  /* add-to-calendar button on event cards */
+  .calbtn{
+    margin-top:12px;width:100%;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+    background:transparent;color:var(--ink);border:1.5px solid var(--ink);padding:9px 12px;cursor:pointer;
+    transition:background .14s ease,color .14s ease;
+  }
+  .calbtn:hover{background:var(--amber);border-color:var(--amber);color:var(--on-accent)}
+  .calbtn.added{background:var(--teal);border-color:var(--teal);color:var(--on-accent)}
+  .card .wrap{flex:1}
+
+  /* state panels (ambiguous / none / quiet) */
+  .panel{grid-column:1/-1;border:2px dashed var(--line);padding:34px 26px;text-align:center}
+  .panel h3{font-weight:900;font-size:22px;margin:0 0 8px;letter-spacing:-.01em}
+  .panel p{font-family:'Archivo Narrow',sans-serif;font-size:16px;color:var(--ink-soft);margin:0 0 18px}
+  .alts{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .alt{font-family:'Archivo',sans-serif;font-weight:700;font-size:15px;background:var(--paper);
+    border:2px solid var(--ink);padding:10px 18px;cursor:pointer;transition:background .15s,color .15s}
+  .alt:hover{background:var(--amber);border-color:var(--amber);color:var(--on-accent)}
+  .quiet-banner{grid-column:1/-1;background:var(--paper-2);border:1.5px solid var(--line);
+    padding:12px 16px;font-family:'Archivo Narrow',sans-serif;font-size:14px;color:var(--ink-soft);margin-bottom:2px}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  @media(max-width:520px){
+    .feed{grid-template-columns:1fr}
+    .entry{flex-direction:column}.entry button{padding:13px}
+  }
+</style>
+</head>
+<body>
+
+<!-- SCREEN 1: DOOR -->
+<section id="door" class="active">
+  <div class="door-mark">City<span class="scope">Scope</span></div>
+  <p class="door-sub">The cool stuff people actually talk about — wherever you are.</p>
+  <div class="tapin-wrap">
+    <button class="tapin" id="tapin">Tap in</button>
+  </div>
+  <div class="door-foot">forum chatter, not event calendars</div>
+</section>
+
+<!-- SCREEN 2: LOCATE -->
+<section id="locate">
+  <button class="back" data-to="door">← back</button>
+  <h1 class="locate-h">Where are you?</h1>
+  <p class="locate-d">We'll dig up what's happening in your corner of the world.</p>
+
+  <button class="gps" id="gps">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8z"/></svg>
+    <span>Use my location<small>fastest — no typing</small></span>
+  </button>
+
+  <div class="or">or</div>
+
+  <div class="entry">
+    <div class="ac-wrap">
+      <input id="cityInput" type="text" placeholder="Enter a city (e.g. Asheville)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false">
+      <div id="acList" class="ac-list" role="listbox"></div>
+    </div>
+    <button data-mode="city">Go</button>
+  </div>
+  <div class="entry">
+    <input id="zipInput" type="text" inputmode="numeric" placeholder="…or a ZIP code" autocomplete="off" maxlength="5">
+    <button data-mode="zip">Go</button>
+  </div>
+  <div class="hint">Start typing a city — pick from the list to choose the right state</div>
+  <div class="locate-msg" id="locateMsg"></div>
+</section>
+
+<!-- SCREEN 3: FEED -->
+<section id="feed-screen">
+  <div class="fhead">
+    <div class="fhead-top">
+      <div class="fmark" id="homeMark">City<span class="scope">Scope</span></div>
+      <button class="change" id="changeCity">Change city</button>
+    </div>
+    <div class="place" id="placeName"></div>
+    <div class="src-note" id="srcNote"></div>
+    <div class="chips" id="chips">
+      <button class="chip" data-cat="all" aria-pressed="true">Everything</button>
+      <button class="chip" data-cat="event" aria-pressed="false">Events &amp; gigs</button>
+      <button class="chip" data-cat="gem" aria-pressed="false">Hidden gems</button>
+      <button class="chip" data-cat="news" aria-pressed="false">Local happenings</button>
+    </div>
+  </div>
+  <main>
+    <div class="count" id="count"></div>
+    <div class="feed" id="feed"></div>
+  </main>
+</section>
+
+<script>
+/* ===================================================================
+   DATA SOURCE
+   Auto-detecting:
+   - Served from the CityScope backend (deployed) -> uses the live API
+     at the same origin (relative paths, no CORS).
+   - Opened as a plain file:// or static host with no API -> falls back
+     to the embedded sample data so it still works.
+   Each call tries the API first and falls back if it's unreachable.
+   =================================================================== */
+// "" = same origin (works when the backend serves this page). The app probes
+// /health once on load; if that fails, it switches to embedded-data mode.
+let API_BASE = "";
+let LIVE = false;   // set true after a successful health probe
+
+async function probeApi(){
+  try{
+    const r = await fetch(`${API_BASE}/health`, {cache:"no-store"});
+    LIVE = r.ok;
+  }catch(_){ LIVE = false; }
+}
+const DATA = {"seed": {"austin": [{"id": "a4", "category": "gem", "category_label": "Hidden gems", "title": "Underrated hidden gem: tiny ramen counter inside a laundromat on Airport Blvd", "summary": "No sign, 6 seats, cash only.", "when": null, "price": "cash only", "is_free": false, "source": "r/Austin", "origin": "reddit", "url": "https://reddit.com/r/Austin/a4", "score": 524, "comments": 88, "confidence": 0.86, "rank_score": 561.9}, {"id": "a1", "category": "event", "category_label": "Events & gigs", "title": "Free outdoor movie night at Republic Square this Saturday — bring blankets", "summary": "They're showing a classic at sundown (~8:30pm).", "when": "Saturday 8:30pm", "price": "free", "is_free": true, "source": "r/Austin", "origin": "reddit", "url": "https://reddit.com/r/Austin/x", "score": 412, "comments": 63, "confidence": 0.99, "rank_score": 384.7}, {"id": "a5", "category": "news", "category_label": "Local happenings", "title": "Bat colony emergence is peaking this week at Congress Bridge", "summary": "Best viewing right now ~8:15pm.", "when": "This Week 8:15pm", "price": null, "is_free": false, "source": "r/Austin", "origin": "reddit", "url": "https://reddit.com/r/Austin/a5", "score": 301, "comments": 34, "confidence": 0.75, "rank_score": 221.4}, {"id": "a8", "category": "news", "category_label": "Local happenings", "title": "New mural just went up in the alley behind 2nd St — it's incredible", "summary": "Whole three-story wall.", "when": "Today", "price": null, "is_free": false, "source": "r/Austin", "origin": "reddit", "url": "https://reddit.com/r/Austin/a8", "score": 167, "comments": 15, "confidence": 0.99, "rank_score": 172.3}, {"id": "a7", "category": "event", "category_label": "Events & gigs", "title": "Massive vintage flea market popping up Sunday in an East Side parking lot", "summary": "60+ vendors, vinyl, clothes, weird furniture.", "when": "Sunday 9am", "price": "free", "is_free": true, "source": "r/vintage", "origin": "reddit", "url": "https://reddit.com/r/x/a7", "score": 233, "comments": 27, "confidence": 0.99, "rank_score": 165.7}, {"id": "a2", "category": "event", "category_label": "Events & gigs", "title": "Secret warehouse show Friday night off E 5th — touring synth act", "summary": "Word of mouth only, DM for the address.", "when": "Friday 10pm", "price": "$15", "is_free": false, "source": "r/audioengineering", "origin": "reddit", "url": "https://reddit.com/r/x/a2", "score": 188, "comments": 41, "confidence": 0.9, "rank_score": 155.2}, {"id": "rss_austin_2", "category": "event", "category_label": "Events & gigs", "title": "Outdoor film series kicks off in Austin Thursday", "summary": "A cult classic under the stars, 8:30pm, bring a chair.", "when": "Thursday 8:30pm", "price": "free", "is_free": true, "source": "Austin Chronicle", "origin": "rss", "url": "https://altweekly.example/austin/2", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 58.3}, {"id": "rss_austin_1", "category": "event", "category_label": "Events & gigs", "title": "Austin Chronicle Picks: Austin gallery crawl this Friday night", "summary": "Dozens of galleries open late downtown Austin, free, 6–10pm.", "when": "Friday 10pm", "price": "free", "is_free": true, "source": "Austin Chronicle", "origin": "rss", "url": "https://altweekly.example/austin/1", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 46.3}, {"id": "rss_austin_4", "category": "event", "category_label": "Events & gigs", "title": "Neighborhood block party + street fair in Austin Sunday", "summary": "Local vendors, kids' zone, two stages.", "when": "Sunday 11am", "price": "free", "is_free": true, "source": "Austin Chronicle", "origin": "rss", "url": "https://altweekly.example/austin/4", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 17.9}, {"id": "rss_austin_3", "category": "event", "category_label": "Events & gigs", "title": "Austin farmers + makers market returns Sunday morning", "summary": "Produce, crafts, coffee, 8am–1pm at the riverfront lot.", "when": "Sunday 8am", "price": "free", "is_free": true, "source": "Austin Chronicle", "origin": "rss", "url": "https://altweekly.example/austin/3", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 14.0}, {"id": "rss_austin_0", "category": "event", "category_label": "Events & gigs", "title": "Food truck festival rolls into Austin this Saturday", "summary": "40+ trucks, live DJ, beer garden.", "when": "Saturday 9pm", "price": "free", "is_free": true, "source": "Austin Chronicle", "origin": "rss", "url": "https://altweekly.example/austin/0", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 6.2}], "portland-or": [{"id": "p4", "category": "gem", "category_label": "Hidden gems", "title": "Hidden gem: a tiny used bookstore basement that only opens Fri-Sat nights", "summary": "Off Hawthorne, candlelit, plays jazz, owner makes tea.", "when": null, "price": null, "is_free": false, "source": "r/Portland", "origin": "reddit", "url": "https://reddit.com/r/Portland/p4", "score": 398, "comments": 52, "confidence": 0.99, "rank_score": 447.3}, {"id": "p1", "category": "event", "category_label": "Events & gigs", "title": "Pop-up night market under the Burnside Bridge tonight", "summary": "Local makers, weird food, live DJ.", "when": "Tonight 6pm", "price": null, "is_free": false, "source": "r/Portland", "origin": "reddit", "url": "https://reddit.com/r/Portland/p1", "score": 289, "comments": 44, "confidence": 0.99, "rank_score": 321.4}, {"id": "p5", "category": "news", "category_label": "Local happenings", "title": "Bioluminescent algae reported on the coast — worth the drive this week", "summary": "People seeing blue waves at night near Pacific City.", "when": "This Week 10pm", "price": null, "is_free": false, "source": "r/Portland", "origin": "reddit", "url": "https://reddit.com/r/Portland/p5", "score": 211, "comments": 30, "confidence": 0.8, "rank_score": 173.4}, {"id": "p3", "category": "event", "category_label": "Events & gigs", "title": "Guided mushroom foraging walk in Forest Park this weekend — free, beginner friendly", "summary": "Local mycological society running it Sat 10am, meet at the Lower Macleay trailhead.", "when": "This Weekend 10am", "price": "free", "is_free": true, "source": "r/mycology", "origin": "reddit", "url": "https://reddit.com/r/x/p3", "score": 142, "comments": 19, "confidence": 0.99, "rank_score": 108.9}, {"id": "p7", "category": "event", "category_label": "Events & gigs", "title": "Free outdoor jazz series starts Thursday at the waterfront", "summary": "Every Thursday this month, 7pm, by the Salmon Street fountain.", "when": "Thursday 7pm", "price": "free", "is_free": true, "source": "r/Portland", "origin": "reddit", "url": "https://reddit.com/r/Portland/p7", "score": 176, "comments": 22, "confidence": 0.99, "rank_score": 63.5}, {"id": "rss_portland_1", "category": "event", "category_label": "Events & gigs", "title": "Outdoor film series kicks off in Portland Thursday", "summary": "A cult classic under the stars, 8:30pm, bring a chair.", "when": "Thursday 8:30pm", "price": "free", "is_free": true, "source": "Willamette Week", "origin": "rss", "url": "https://altweekly.example/portland/1", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 50.2}, {"id": "rss_portland_3", "category": "event", "category_label": "Events & gigs", "title": "Willamette Week Picks: Portland gallery crawl this Friday night", "summary": "Dozens of galleries open late downtown Portland, free, 6–10pm.", "when": "Friday 10pm", "price": "free", "is_free": true, "source": "Willamette Week", "origin": "rss", "url": "https://altweekly.example/portland/3", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 49.6}, {"id": "rss_portland_0", "category": "event", "category_label": "Events & gigs", "title": "Neighborhood block party + street fair in Portland Sunday", "summary": "Local vendors, kids' zone, two stages.", "when": "Sunday 11am", "price": "free", "is_free": true, "source": "Willamette Week", "origin": "rss", "url": "https://altweekly.example/portland/0", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 43.0}, {"id": "rss_portland_2", "category": "event", "category_label": "Events & gigs", "title": "Food truck festival rolls into Portland this Saturday", "summary": "40+ trucks, live DJ, beer garden.", "when": "Saturday 9pm", "price": "free", "is_free": true, "source": "Willamette Week", "origin": "rss", "url": "https://altweekly.example/portland/2", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 37.3}, {"id": "rss_portland_4", "category": "event", "category_label": "Events & gigs", "title": "Portland farmers + makers market returns Sunday morning", "summary": "Produce, crafts, coffee, 8am–1pm at the riverfront lot.", "when": "Sunday 8am", "price": "free", "is_free": true, "source": "Willamette Week", "origin": "rss", "url": "https://altweekly.example/portland/4", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 19.9}], "nyc": [{"id": "n3", "category": "gem", "category_label": "Hidden gems", "title": "Hidden gem: unmarked Sichuan spot above a phone repair shop in Flushing", "summary": "Second floor, no English sign, point at pictures.", "when": null, "price": "cash only", "is_free": false, "source": "r/FoodNYC", "origin": "reddit", "url": "https://reddit.com/r/x/n3", "score": 612, "comments": 94, "confidence": 0.99, "rank_score": 733.7}, {"id": "n1", "category": "event", "category_label": "Events & gigs", "title": "Rooftop silent disco in Bushwick Saturday — sunset slot still has tickets", "summary": "Three channels, BYOB, killer skyline view.", "when": "Saturday 11pm", "price": "byob", "is_free": false, "source": "r/nyc", "origin": "reddit", "url": "https://reddit.com/r/nyc/n1", "score": 322, "comments": 58, "confidence": 0.99, "rank_score": 337.3}, {"id": "n6", "category": "event", "category_label": "Events & gigs", "title": "Surprise warehouse art show opening tonight in Greenpoint, one night only", "summary": "A collective took over an empty warehouse, 30+ artists, performances at 9 and 11.", "when": "Tonight", "price": "free", "is_free": true, "source": "r/nyc", "origin": "reddit", "url": "https://reddit.com/r/nyc/n6", "score": 198, "comments": 26, "confidence": 0.99, "rank_score": 206.2}, {"id": "n4", "category": "event", "category_label": "Events & gigs", "title": "Free Shakespeare in the Park lottery is open for this week's run", "summary": "Digital lottery closes daily at noon.", "when": "This Week", "price": "free", "is_free": true, "source": "r/nyc", "origin": "reddit", "url": "https://reddit.com/r/nyc/n4", "score": 245, "comments": 33, "confidence": 0.99, "rank_score": 201.0}, {"id": "rss_nyc_4", "category": "event", "category_label": "Events & gigs", "title": "Live this weekend in NYC: indie showcase at the old theater", "summary": "Three local bands Saturday, doors 8pm, $12 advance.", "when": "Saturday 8pm", "price": "$12", "is_free": false, "source": "The Village Voice", "origin": "rss", "url": "https://altweekly.example/nyc/4", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 51.9}, {"id": "rss_nyc_1", "category": "event", "category_label": "Events & gigs", "title": "Food truck festival rolls into NYC this Saturday", "summary": "40+ trucks, live DJ, beer garden.", "when": "Saturday 9pm", "price": "free", "is_free": true, "source": "The Village Voice", "origin": "rss", "url": "https://altweekly.example/nyc/1", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 42.1}, {"id": "rss_nyc_0", "category": "event", "category_label": "Events & gigs", "title": "NYC farmers + makers market returns Sunday morning", "summary": "Produce, crafts, coffee, 8am–1pm at the riverfront lot.", "when": "Sunday 8am", "price": "free", "is_free": true, "source": "The Village Voice", "origin": "rss", "url": "https://altweekly.example/nyc/0", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 27.2}, {"id": "rss_nyc_3", "category": "event", "category_label": "Events & gigs", "title": "The Village Voice Picks: NYC gallery crawl this Friday night", "summary": "Dozens of galleries open late downtown NYC, free, 6–10pm.", "when": "Friday 10pm", "price": "free", "is_free": true, "source": "The Village Voice", "origin": "rss", "url": "https://altweekly.example/nyc/3", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 20.5}, {"id": "rss_nyc_2", "category": "event", "category_label": "Events & gigs", "title": "Outdoor film series kicks off in NYC Thursday", "summary": "A cult classic under the stars, 8:30pm, bring a chair.", "when": "Thursday 8:30pm", "price": "free", "is_free": true, "source": "The Village Voice", "origin": "rss", "url": "https://altweekly.example/nyc/2", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 10.8}], "chicago": [{"id": "chicago_03", "category": "gem", "category_label": "Hidden gems", "title": "Hidden gem in Chicago: tiny ramen counter with no sign, cash only", "summary": "Six seats, best tonkotsu in town and nobody knows about it.", "when": null, "price": "cash only", "is_free": false, "source": "r/chicago", "origin": "reddit", "url": "https://reddit.com/r/chicago/comments/chicago_03", "score": 384, "comments": 48, "confidence": 0.83, "rank_score": 393.0}, {"id": "chicago_06", "category": "gem", "category_label": "Hidden gems", "title": "Underrated Chicago spot: a basement bookstore that only opens weekend nights", "summary": "Candlelit, plays jazz, owner makes tea.", "when": null, "price": null, "is_free": false, "source": "r/chicago", "origin": "reddit", "url": "https://reddit.com/r/chicago/comments/chicago_06", "score": 273, "comments": 49, "confidence": 0.99, "rank_score": 360.5}, {"id": "chicago_05", "category": "news", "category_label": "Local happenings", "title": "New mural just went up in Chicago — three stories, worth a detour", "summary": "Artist worked on it all week, finished today.", "when": "Today", "price": null, "is_free": false, "source": "r/chicago", "origin": "reddit", "url": "https://reddit.com/r/chicago/comments/chicago_05", "score": 261, "comments": 12, "confidence": 0.99, "rank_score": 263.6}, {"id": "chicago_07", "category": "gem", "category_label": "Hidden gems", "title": "Best-kept secret in Chicago: rooftop garden bar above a parking garage", "summary": "No signage, take the freight elevator to the top.", "when": null, "price": null, "is_free": false, "source": "r/chicago", "origin": "reddit", "url": "https://reddit.com/r/chicago/comments/chicago_07", "score": 181, "comments": 36, "confidence": 0.99, "rank_score": 245.8}, {"id": "chicago_02", "category": "event", "category_label": "Events & gigs", "title": "Vintage flea market popping up in Chicago Sunday", "summary": "60+ vendors, vinyl, clothes, weird furniture.", "when": "Sunday 9am", "price": "free", "is_free": true, "source": "r/chicago", "origin": "reddit", "url": "https://reddit.com/r/chicago/comments/chicago_02", "score": 147, "comments": 17, "confidence": 0.99, "rank_score": 168.8}, {"id": "chicago_01", "category": "news", "category_label": "Local happenings", "title": "Wildflowers are peaking right now just outside Chicago", "summary": "Best viewing this week along the river trail.", "when": "This Week", "price": null, "is_free": false, "source": "r/chicago", "origin": "reddit", "url": "https://reddit.com/r/chicago/comments/chicago_01", "score": 138, "comments": 37, "confidence": 0.75, "rank_score": 142.1}, {"id": "chibeer_22", "category": "gem", "category_label": "Hidden gems", "title": "Underrated Chicago spot: a basement bookstore that only opens weekend nights", "summary": "Candlelit, plays jazz, owner makes tea.", "when": null, "price": null, "is_free": false, "source": "r/chibeer", "origin": "reddit", "url": "https://reddit.com/r/chibeer/comments/chibeer_22", "score": 125, "comments": 23, "confidence": 0.99, "rank_score": 141.3}, {"id": "chicagofood_12", "category": "gem", "category_label": "Hidden gems", "title": "Best-kept secret in Chicago: rooftop garden bar above a parking garage", "summary": "No signage, take the freight elevator to the top.", "when": null, "price": null, "is_free": false, "source": "r/chicagofood", "origin": "reddit", "url": "https://reddit.com/r/chicagofood/comments/chicagofood_12", "score": 88, "comments": 29, "confidence": 0.99, "rank_score": 130.5}, {"id": "rss_chicago_1", "category": "event", "category_label": "Events & gigs", "title": "Live this weekend in Chicago: indie showcase at the old theater", "summary": "Three local bands Saturday, doors 8pm, $12 advance.", "when": "Saturday 8pm", "price": "$12", "is_free": false, "source": "Chicago Reader", "origin": "rss", "url": "https://altweekly.example/chicago/1", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 34.4}, {"id": "rss_chicago_0", "category": "event", "category_label": "Events & gigs", "title": "Outdoor film series kicks off in Chicago Thursday", "summary": "A cult classic under the stars, 8:30pm, bring a chair.", "when": "Thursday 8:30pm", "price": "free", "is_free": true, "source": "Chicago Reader", "origin": "rss", "url": "https://altweekly.example/chicago/0", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 28.3}, {"id": "chibeer_20", "category": "news", "category_label": "Local happenings", "title": "New mural just went up in Chicago — three stories, worth a detour", "summary": "Artist worked on it all week, finished today.", "when": "Today", "price": null, "is_free": false, "source": "r/chibeer", "origin": "reddit", "url": "https://reddit.com/r/chibeer/comments/chibeer_20", "score": 42, "comments": 8, "confidence": 0.99, "rank_score": 21.1}, {"id": "chicagofood_10", "category": "event", "category_label": "Events & gigs", "title": "Pop-up night market in Chicago this Saturday — local makers + food trucks", "summary": "Doors 5pm, free entry, runs til late.", "when": "Saturday 5pm", "price": "free", "is_free": true, "source": "r/chicagofood", "origin": "reddit", "url": "https://reddit.com/r/chicagofood/comments/chicagofood_10", "score": 174, "comments": 10, "confidence": 0.99, "rank_score": 19.2}, {"id": "rss_chicago_4", "category": "event", "category_label": "Events & gigs", "title": "Chicago farmers + makers market returns Sunday morning", "summary": "Produce, crafts, coffee, 8am–1pm at the riverfront lot.", "when": "Sunday 8am", "price": "free", "is_free": true, "source": "Chicago Reader", "origin": "rss", "url": "https://altweekly.example/chicago/4", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 17.0}, {"id": "chibeer_21", "category": "event", "category_label": "Events & gigs", "title": "Vintage flea market popping up in Chicago Sunday", "summary": "60+ vendors, vinyl, clothes, weird furniture.", "when": "Sunday 9am", "price": "free", "is_free": true, "source": "r/chibeer", "origin": "reddit", "url": "https://reddit.com/r/chibeer/comments/chibeer_21", "score": 103, "comments": 15, "confidence": 0.99, "rank_score": 13.2}, {"id": "rss_chicago_3", "category": "event", "category_label": "Events & gigs", "title": "Food truck festival rolls into Chicago this Saturday", "summary": "40+ trucks, live DJ, beer garden.", "when": "Saturday 9pm", "price": "free", "is_free": true, "source": "Chicago Reader", "origin": "rss", "url": "https://altweekly.example/chicago/3", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 9.9}, {"id": "rss_chicago_2", "category": "event", "category_label": "Events & gigs", "title": "Neighborhood block party + street fair in Chicago Sunday", "summary": "Local vendors, kids' zone, two stages.", "when": "Sunday 11am", "price": "free", "is_free": true, "source": "Chicago Reader", "origin": "rss", "url": "https://altweekly.example/chicago/2", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 9.8}], "seattle": [{"id": "Seattle_06", "category": "gem", "category_label": "Hidden gems", "title": "Hidden gem in Seattle: tiny ramen counter with no sign, cash only", "summary": "Six seats, best tonkotsu in town and nobody knows about it.", "when": null, "price": "cash only", "is_free": false, "source": "r/Seattle", "origin": "reddit", "url": "https://reddit.com/r/Seattle/comments/Seattle_06", "score": 611, "comments": 67, "confidence": 0.83, "rank_score": 615.8}, {"id": "Seattle_07", "category": "gem", "category_label": "Hidden gems", "title": "Best-kept secret in Seattle: rooftop garden bar above a parking garage", "summary": "No signage, take the freight elevator to the top.", "when": null, "price": null, "is_free": false, "source": "r/Seattle", "origin": "reddit", "url": "https://reddit.com/r/Seattle/comments/Seattle_07", "score": 325, "comments": 32, "confidence": 0.99, "rank_score": 381.8}, {"id": "Seattle_00", "category": "gem", "category_label": "Hidden gems", "title": "Underrated Seattle spot: a basement bookstore that only opens weekend nights", "summary": "Candlelit, plays jazz, owner makes tea.", "when": null, "price": null, "is_free": false, "source": "r/Seattle", "origin": "reddit", "url": "https://reddit.com/r/Seattle/comments/Seattle_00", "score": 337, "comments": 28, "confidence": 0.99, "rank_score": 380.2}, {"id": "Seattle_03", "category": "event", "category_label": "Events & gigs", "title": "Secret warehouse show in Seattle tonight — touring act, word of mouth only", "summary": "DM for the address.", "when": "Tonight 10pm", "price": "$15", "is_free": false, "source": "r/Seattle", "origin": "reddit", "url": "https://reddit.com/r/Seattle/comments/Seattle_03", "score": 279, "comments": 29, "confidence": 0.9, "rank_score": 223.7}, {"id": "SeattleMusic_20", "category": "gem", "category_label": "Hidden gems", "title": "Hidden gem in Seattle: tiny ramen counter with no sign, cash only", "summary": "Six seats, best tonkotsu in town and nobody knows about it.", "when": null, "price": "cash only", "is_free": false, "source": "r/SeattleMusic", "origin": "reddit", "url": "https://reddit.com/r/SeattleMusic/comments/SeattleMusic_20", "score": 172, "comments": 39, "confidence": 0.83, "rank_score": 202.7}, {"id": "SeattleWA_10", "category": "gem", "category_label": "Hidden gems", "title": "Underrated Seattle spot: a basement bookstore that only opens weekend nights", "summary": "Candlelit, plays jazz, owner makes tea.", "when": null, "price": null, "is_free": false, "source": "r/SeattleWA", "origin": "reddit", "url": "https://reddit.com/r/SeattleWA/comments/SeattleWA_10", "score": 139, "comments": 36, "confidence": 0.99, "rank_score": 181.5}, {"id": "Seattle_02", "category": "event", "category_label": "Events & gigs", "title": "Vintage flea market popping up in Seattle Sunday", "summary": "60+ vendors, vinyl, clothes, weird furniture.", "when": "Sunday 9am", "price": "free", "is_free": true, "source": "r/Seattle", "origin": "reddit", "url": "https://reddit.com/r/Seattle/comments/Seattle_02", "score": 184, "comments": 12, "confidence": 0.99, "rank_score": 141.1}, {"id": "Seattle_01", "category": "event", "category_label": "Events & gigs", "title": "Pop-up night market in Seattle this Saturday — local makers + food trucks", "summary": "Doors 5pm, free entry, runs til late.", "when": "Saturday 5pm", "price": "free", "is_free": true, "source": "r/Seattle", "origin": "reddit", "url": "https://reddit.com/r/Seattle/comments/Seattle_01", "score": 140, "comments": 19, "confidence": 0.99, "rank_score": 137.1}, {"id": "SeattleWA_11", "category": "event", "category_label": "Events & gigs", "title": "Free outdoor movie night downtown Seattle on Friday", "summary": "Showing a classic at sundown, ~8:30pm.", "when": "Friday 8:30pm", "price": "free", "is_free": true, "source": "r/SeattleWA", "origin": "reddit", "url": "https://reddit.com/r/SeattleWA/comments/SeattleWA_11", "score": 181, "comments": 25, "confidence": 0.99, "rank_score": 67.5}, {"id": "SeattleMusic_21", "category": "event", "category_label": "Events & gigs", "title": "Secret warehouse show in Seattle tonight — touring act, word of mouth only", "summary": "DM for the address.", "when": "Tonight 10pm", "price": "$15", "is_free": false, "source": "r/SeattleMusic", "origin": "reddit", "url": "https://reddit.com/r/SeattleMusic/comments/SeattleMusic_21", "score": 74, "comments": 7, "confidence": 0.9, "rank_score": 46.1}, {"id": "rss_seattle_3", "category": "event", "category_label": "Events & gigs", "title": "Outdoor film series kicks off in Seattle Thursday", "summary": "A cult classic under the stars, 8:30pm, bring a chair.", "when": "Thursday 8:30pm", "price": "free", "is_free": true, "source": "The Stranger", "origin": "rss", "url": "https://altweekly.example/seattle/3", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 43.7}, {"id": "rss_seattle_0", "category": "event", "category_label": "Events & gigs", "title": "Live this weekend in Seattle: indie showcase at the old theater", "summary": "Three local bands Saturday, doors 8pm, $12 advance.", "when": "Saturday 8pm", "price": "$12", "is_free": false, "source": "The Stranger", "origin": "rss", "url": "https://altweekly.example/seattle/0", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 42.5}, {"id": "rss_seattle_1", "category": "event", "category_label": "Events & gigs", "title": "The Stranger Picks: Seattle gallery crawl this Friday night", "summary": "Dozens of galleries open late downtown Seattle, free, 6–10pm.", "when": "Friday 10pm", "price": "free", "is_free": true, "source": "The Stranger", "origin": "rss", "url": "https://altweekly.example/seattle/1", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 40.9}, {"id": "rss_seattle_4", "category": "event", "category_label": "Events & gigs", "title": "Food truck festival rolls into Seattle this Saturday", "summary": "40+ trucks, live DJ, beer garden.", "when": "Saturday 9pm", "price": "free", "is_free": true, "source": "The Stranger", "origin": "rss", "url": "https://altweekly.example/seattle/4", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 40.0}, {"id": "rss_seattle_2", "category": "event", "category_label": "Events & gigs", "title": "Seattle farmers + makers market returns Sunday morning", "summary": "Produce, crafts, coffee, 8am–1pm at the riverfront lot.", "when": "Sunday 8am", "price": "free", "is_free": true, "source": "The Stranger", "origin": "rss", "url": "https://altweekly.example/seattle/2", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 14.4}, {"id": "SeattleMusic_22", "category": "event", "category_label": "Events & gigs", "title": "Free outdoor movie night downtown Seattle on Friday", "summary": "Showing a classic at sundown, ~8:30pm.", "when": "Friday 8:30pm", "price": "free", "is_free": true, "source": "r/SeattleMusic", "origin": "reddit", "url": "https://reddit.com/r/SeattleMusic/comments/SeattleMusic_22", "score": 100, "comments": 18, "confidence": 0.99, "rank_score": 13.5}], "asheville": [{"id": "asheville_02", "category": "gem", "category_label": "Hidden gems", "title": "Underrated Asheville spot: a basement bookstore that only opens weekend nights", "summary": "Candlelit, plays jazz, owner makes tea.", "when": null, "price": null, "is_free": false, "source": "r/asheville", "origin": "reddit", "url": "https://reddit.com/r/asheville/comments/asheville_02", "score": 460, "comments": 54, "confidence": 0.99, "rank_score": 543.7}, {"id": "asheville_03", "category": "event", "category_label": "Events & gigs", "title": "Pop-up night market in Asheville this Saturday — local makers + food trucks", "summary": "Doors 5pm, free entry, runs til late.", "when": "Saturday 5pm", "price": "free", "is_free": true, "source": "r/asheville", "origin": "reddit", "url": "https://reddit.com/r/asheville/comments/asheville_03", "score": 409, "comments": 67, "confidence": 0.99, "rank_score": 501.5}, {"id": "asheville_04", "category": "gem", "category_label": "Hidden gems", "title": "Hidden gem in Asheville: tiny ramen counter with no sign, cash only", "summary": "Six seats, best tonkotsu in town and nobody knows about it.", "when": null, "price": "cash only", "is_free": false, "source": "r/asheville", "origin": "reddit", "url": "https://reddit.com/r/asheville/comments/asheville_04", "score": 262, "comments": 92, "confidence": 0.83, "rank_score": 366.9}, {"id": "asheville_05", "category": "news", "category_label": "Local happenings", "title": "New mural just went up in Asheville — three stories, worth a detour", "summary": "Artist worked on it all week, finished today.", "when": "Today", "price": null, "is_free": false, "source": "r/asheville", "origin": "reddit", "url": "https://reddit.com/r/asheville/comments/asheville_05", "score": 259, "comments": 27, "confidence": 0.99, "rank_score": 300.9}, {"id": "asheville_06", "category": "gem", "category_label": "Hidden gems", "title": "Best-kept secret in Asheville: rooftop garden bar above a parking garage", "summary": "No signage, take the freight elevator to the top.", "when": null, "price": null, "is_free": false, "source": "r/asheville", "origin": "reddit", "url": "https://reddit.com/r/asheville/comments/asheville_06", "score": 164, "comments": 44, "confidence": 0.99, "rank_score": 245.8}, {"id": "asheville_00", "category": "event", "category_label": "Events & gigs", "title": "Vintage flea market popping up in Asheville Sunday", "summary": "60+ vendors, vinyl, clothes, weird furniture.", "when": "Sunday 9am", "price": "free", "is_free": true, "source": "r/asheville", "origin": "reddit", "url": "https://reddit.com/r/asheville/comments/asheville_00", "score": 177, "comments": 35, "confidence": 0.99, "rank_score": 192.8}, {"id": "asheville_07", "category": "news", "category_label": "Local happenings", "title": "Wildflowers are peaking right now just outside Asheville", "summary": "Best viewing this week along the river trail.", "when": "This Week", "price": null, "is_free": false, "source": "r/asheville", "origin": "reddit", "url": "https://reddit.com/r/asheville/comments/asheville_07", "score": 268, "comments": 17, "confidence": 0.75, "rank_score": 192.1}, {"id": "rss_asheville_4", "category": "event", "category_label": "Events & gigs", "title": "Neighborhood block party + street fair in Asheville Sunday", "summary": "Local vendors, kids' zone, two stages.", "when": "Sunday 11am", "price": "free", "is_free": true, "source": "Mountain Xpress", "origin": "rss", "url": "https://altweekly.example/asheville/4", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 49.6}, {"id": "rss_asheville_2", "category": "event", "category_label": "Events & gigs", "title": "Outdoor film series kicks off in Asheville Thursday", "summary": "A cult classic under the stars, 8:30pm, bring a chair.", "when": "Thursday 8:30pm", "price": "free", "is_free": true, "source": "Mountain Xpress", "origin": "rss", "url": "https://altweekly.example/asheville/2", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 37.7}, {"id": "rss_asheville_3", "category": "event", "category_label": "Events & gigs", "title": "Live this weekend in Asheville: indie showcase at the old theater", "summary": "Three local bands Saturday, doors 8pm, $12 advance.", "when": "Saturday 8pm", "price": "$12", "is_free": false, "source": "Mountain Xpress", "origin": "rss", "url": "https://altweekly.example/asheville/3", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 23.0}, {"id": "rss_asheville_0", "category": "event", "category_label": "Events & gigs", "title": "Mountain Xpress Picks: Asheville gallery crawl this Friday night", "summary": "Dozens of galleries open late downtown Asheville, free, 6–10pm.", "when": "Friday 10pm", "price": "free", "is_free": true, "source": "Mountain Xpress", "origin": "rss", "url": "https://altweekly.example/asheville/0", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 12.2}, {"id": "rss_asheville_1", "category": "event", "category_label": "Events & gigs", "title": "Asheville farmers + makers market returns Sunday morning", "summary": "Produce, crafts, coffee, 8am–1pm at the riverfront lot.", "when": "Sunday 8am", "price": "free", "is_free": true, "source": "Mountain Xpress", "origin": "rss", "url": "https://altweekly.example/asheville/1", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 11.4}], "durham": [{"id": "bullcity_01", "category": "gem", "category_label": "Hidden gems", "title": "Underrated Durham spot: a basement bookstore that only opens weekend nights", "summary": "Candlelit, plays jazz, owner makes tea.", "when": null, "price": null, "is_free": false, "source": "r/bullcity", "origin": "reddit", "url": "https://reddit.com/r/bullcity/comments/bullcity_01", "score": 309, "comments": 72, "confidence": 0.9, "rank_score": 402.6}, {"id": "bullcity_00", "category": "gem", "category_label": "Hidden gems", "title": "Best-kept secret in Durham: rooftop garden bar above a parking garage", "summary": "No signage, take the freight elevator to the top.", "when": null, "price": null, "is_free": false, "source": "r/bullcity", "origin": "reddit", "url": "https://reddit.com/r/bullcity/comments/bullcity_00", "score": 243, "comments": 36, "confidence": 0.83, "rank_score": 259.3}, {"id": "bullcity_05", "category": "news", "category_label": "Local happenings", "title": "New mural just went up in Durham — three stories, worth a detour", "summary": "Artist worked on it all week, finished today.", "when": "Today", "price": null, "is_free": false, "source": "r/bullcity", "origin": "reddit", "url": "https://reddit.com/r/bullcity/comments/bullcity_05", "score": 273, "comments": 17, "confidence": 0.83, "rank_score": 229.5}, {"id": "bullcity_07", "category": "event", "category_label": "Events & gigs", "title": "Vintage flea market popping up in Durham Sunday", "summary": "60+ vendors, vinyl, clothes, weird furniture.", "when": "Sunday 9am", "price": "free", "is_free": true, "source": "r/bullcity", "origin": "reddit", "url": "https://reddit.com/r/bullcity/comments/bullcity_07", "score": 208, "comments": 13, "confidence": 0.99, "rank_score": 203.8}, {"id": "bullcity_03", "category": "event", "category_label": "Events & gigs", "title": "Free outdoor movie night downtown Durham on Friday", "summary": "Showing a classic at sundown, ~8:30pm.", "when": "Friday 8:30pm", "price": "free", "is_free": true, "source": "r/bullcity", "origin": "reddit", "url": "https://reddit.com/r/bullcity/comments/bullcity_03", "score": 182, "comments": 18, "confidence": 0.99, "rank_score": 181.8}, {"id": "Durham_11", "category": "gem", "category_label": "Hidden gems", "title": "Underrated Durham spot: a basement bookstore that only opens weekend nights", "summary": "Candlelit, plays jazz, owner makes tea.", "when": null, "price": null, "is_free": false, "source": "r/Durham", "origin": "reddit", "url": "https://reddit.com/r/Durham/comments/Durham_11", "score": 150, "comments": 29, "confidence": 0.9, "rank_score": 173.0}, {"id": "Durham_12", "category": "gem", "category_label": "Hidden gems", "title": "Best-kept secret in Durham: rooftop garden bar above a parking garage", "summary": "No signage, take the freight elevator to the top.", "when": null, "price": null, "is_free": false, "source": "r/Durham", "origin": "reddit", "url": "https://reddit.com/r/Durham/comments/Durham_12", "score": 179, "comments": 29, "confidence": 0.83, "rank_score": 166.1}, {"id": "rss_durham_1", "category": "event", "category_label": "Events & gigs", "title": "Neighborhood block party + street fair in Durham Sunday", "summary": "Local vendors, kids' zone, two stages.", "when": "Sunday 11am", "price": "free", "is_free": true, "source": "INDY Week", "origin": "rss", "url": "https://altweekly.example/durham/1", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 57.1}, {"id": "rss_durham_0", "category": "event", "category_label": "Events & gigs", "title": "Food truck festival rolls into Durham this Saturday", "summary": "40+ trucks, live DJ, beer garden.", "when": "Saturday 9pm", "price": "free", "is_free": true, "source": "INDY Week", "origin": "rss", "url": "https://altweekly.example/durham/0", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 52.0}, {"id": "rss_durham_4", "category": "event", "category_label": "Events & gigs", "title": "INDY Week Picks: Durham gallery crawl this Friday night", "summary": "Dozens of galleries open late downtown Durham, free, 6–10pm.", "when": "Friday 10pm", "price": "free", "is_free": true, "source": "INDY Week", "origin": "rss", "url": "https://altweekly.example/durham/4", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 51.9}, {"id": "rss_durham_3", "category": "event", "category_label": "Events & gigs", "title": "Outdoor film series kicks off in Durham Thursday", "summary": "A cult classic under the stars, 8:30pm, bring a chair.", "when": "Thursday 8:30pm", "price": "free", "is_free": true, "source": "INDY Week", "origin": "rss", "url": "https://altweekly.example/durham/3", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 49.8}, {"id": "rss_durham_2", "category": "event", "category_label": "Events & gigs", "title": "Durham farmers + makers market returns Sunday morning", "summary": "Produce, crafts, coffee, 8am–1pm at the riverfront lot.", "when": "Sunday 8am", "price": "free", "is_free": true, "source": "INDY Week", "origin": "rss", "url": "https://altweekly.example/durham/2", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 8.9}], "boise": [{"id": "Boise_01", "category": "gem", "category_label": "Hidden gems", "title": "Underrated Boise spot: a basement bookstore that only opens weekend nights", "summary": "Candlelit, plays jazz, owner makes tea.", "when": null, "price": null, "is_free": false, "source": "r/Boise", "origin": "reddit", "url": "https://reddit.com/r/Boise/comments/Boise_01", "score": 346, "comments": 52, "confidence": 0.99, "rank_score": 434.4}, {"id": "Boise_02", "category": "gem", "category_label": "Hidden gems", "title": "Best-kept secret in Boise: rooftop garden bar above a parking garage", "summary": "No signage, take the freight elevator to the top.", "when": null, "price": null, "is_free": false, "source": "r/Boise", "origin": "reddit", "url": "https://reddit.com/r/Boise/comments/Boise_02", "score": 300, "comments": 36, "confidence": 0.99, "rank_score": 365.2}, {"id": "Boise_07", "category": "event", "category_label": "Events & gigs", "title": "Secret warehouse show in Boise tonight — touring act, word of mouth only", "summary": "DM for the address.", "when": "Tonight 10pm", "price": "$15", "is_free": false, "source": "r/Boise", "origin": "reddit", "url": "https://reddit.com/r/Boise/comments/Boise_07", "score": 229, "comments": 34, "confidence": 0.9, "rank_score": 232.3}, {"id": "Boise_06", "category": "news", "category_label": "Local happenings", "title": "New mural just went up in Boise — three stories, worth a detour", "summary": "Artist worked on it all week, finished today.", "when": "Today", "price": null, "is_free": false, "source": "r/Boise", "origin": "reddit", "url": "https://reddit.com/r/Boise/comments/Boise_06", "score": 201, "comments": 24, "confidence": 0.99, "rank_score": 212.5}, {"id": "Boise_05", "category": "news", "category_label": "Local happenings", "title": "Wildflowers are peaking right now just outside Boise", "summary": "Best viewing this week along the river trail.", "when": "This Week", "price": null, "is_free": false, "source": "r/Boise", "origin": "reddit", "url": "https://reddit.com/r/Boise/comments/Boise_05", "score": 134, "comments": 34, "confidence": 0.75, "rank_score": 126.3}, {"id": "rss_boise_1", "category": "event", "category_label": "Events & gigs", "title": "Boise Weekly Picks: Boise gallery crawl this Friday night", "summary": "Dozens of galleries open late downtown Boise, free, 6–10pm.", "when": "Friday 10pm", "price": "free", "is_free": true, "source": "Boise Weekly", "origin": "rss", "url": "https://altweekly.example/boise/1", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 50.8}, {"id": "rss_boise_4", "category": "event", "category_label": "Events & gigs", "title": "Live this weekend in Boise: indie showcase at the old theater", "summary": "Three local bands Saturday, doors 8pm, $12 advance.", "when": "Saturday 8pm", "price": "$12", "is_free": false, "source": "Boise Weekly", "origin": "rss", "url": "https://altweekly.example/boise/4", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 50.7}, {"id": "rss_boise_0", "category": "event", "category_label": "Events & gigs", "title": "Boise farmers + makers market returns Sunday morning", "summary": "Produce, crafts, coffee, 8am–1pm at the riverfront lot.", "when": "Sunday 8am", "price": "free", "is_free": true, "source": "Boise Weekly", "origin": "rss", "url": "https://altweekly.example/boise/0", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 44.4}, {"id": "rss_boise_2", "category": "event", "category_label": "Events & gigs", "title": "Neighborhood block party + street fair in Boise Sunday", "summary": "Local vendors, kids' zone, two stages.", "when": "Sunday 11am", "price": "free", "is_free": true, "source": "Boise Weekly", "origin": "rss", "url": "https://altweekly.example/boise/2", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 33.1}, {"id": "rss_boise_3", "category": "event", "category_label": "Events & gigs", "title": "Food truck festival rolls into Boise this Saturday", "summary": "40+ trucks, live DJ, beer garden.", "when": "Saturday 9pm", "price": "free", "is_free": true, "source": "Boise Weekly", "origin": "rss", "url": "https://altweekly.example/boise/3", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 22.9}], "savannah": [{"id": "savannah_03", "category": "gem", "category_label": "Hidden gems", "title": "Underrated Savannah spot: a basement bookstore that only opens weekend nights", "summary": "Candlelit, plays jazz, owner makes tea.", "when": null, "price": null, "is_free": false, "source": "r/savannah", "origin": "reddit", "url": "https://reddit.com/r/savannah/comments/savannah_03", "score": 446, "comments": 42, "confidence": 0.99, "rank_score": 507.4}, {"id": "savannah_02", "category": "event", "category_label": "Events & gigs", "title": "Pop-up night market in Savannah this Saturday — local makers + food trucks", "summary": "Doors 5pm, free entry, runs til late.", "when": "Saturday 5pm", "price": "free", "is_free": true, "source": "r/savannah", "origin": "reddit", "url": "https://reddit.com/r/savannah/comments/savannah_02", "score": 430, "comments": 28, "confidence": 0.99, "rank_score": 433.2}, {"id": "savannah_07", "category": "news", "category_label": "Local happenings", "title": "Wildflowers are peaking right now just outside Savannah", "summary": "Best viewing this week along the river trail.", "when": "This Week", "price": null, "is_free": false, "source": "r/savannah", "origin": "reddit", "url": "https://reddit.com/r/savannah/comments/savannah_07", "score": 225, "comments": 46, "confidence": 0.75, "rank_score": 231.6}, {"id": "savannah_01", "category": "gem", "category_label": "Hidden gems", "title": "Best-kept secret in Savannah: rooftop garden bar above a parking garage", "summary": "No signage, take the freight elevator to the top.", "when": null, "price": null, "is_free": false, "source": "r/savannah", "origin": "reddit", "url": "https://reddit.com/r/savannah/comments/savannah_01", "score": 160, "comments": 33, "confidence": 0.99, "rank_score": 219.4}, {"id": "savannah_00", "category": "event", "category_label": "Events & gigs", "title": "Secret warehouse show in Savannah tonight — touring act, word of mouth only", "summary": "DM for the address.", "when": "Tonight 10pm", "price": "$15", "is_free": false, "source": "r/savannah", "origin": "reddit", "url": "https://reddit.com/r/savannah/comments/savannah_00", "score": 142, "comments": 40, "confidence": 0.9, "rank_score": 144.4}, {"id": "rss_savannah_1", "category": "event", "category_label": "Events & gigs", "title": "Outdoor film series kicks off in Savannah Thursday", "summary": "A cult classic under the stars, 8:30pm, bring a chair.", "when": "Thursday 8:30pm", "price": "free", "is_free": true, "source": "Connect Savannah", "origin": "rss", "url": "https://altweekly.example/savannah/1", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 56.5}, {"id": "rss_savannah_3", "category": "event", "category_label": "Events & gigs", "title": "Live this weekend in Savannah: indie showcase at the old theater", "summary": "Three local bands Saturday, doors 8pm, $12 advance.", "when": "Saturday 8pm", "price": "$12", "is_free": false, "source": "Connect Savannah", "origin": "rss", "url": "https://altweekly.example/savannah/3", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 44.7}, {"id": "rss_savannah_0", "category": "event", "category_label": "Events & gigs", "title": "Savannah farmers + makers market returns Sunday morning", "summary": "Produce, crafts, coffee, 8am–1pm at the riverfront lot.", "when": "Sunday 8am", "price": "free", "is_free": true, "source": "Connect Savannah", "origin": "rss", "url": "https://altweekly.example/savannah/0", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 27.6}, {"id": "rss_savannah_2", "category": "event", "category_label": "Events & gigs", "title": "Food truck festival rolls into Savannah this Saturday", "summary": "40+ trucks, live DJ, beer garden.", "when": "Saturday 9pm", "price": "free", "is_free": true, "source": "Connect Savannah", "origin": "rss", "url": "https://altweekly.example/savannah/2", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 13.5}, {"id": "rss_savannah_4", "category": "event", "category_label": "Events & gigs", "title": "Connect Savannah Picks: Savannah gallery crawl this Friday night", "summary": "Dozens of galleries open late downtown Savannah, free, 6–10pm.", "when": "Friday 10pm", "price": "free", "is_free": true, "source": "Connect Savannah", "origin": "rss", "url": "https://altweekly.example/savannah/4", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 5.9}], "marfa": [{"id": "Marfa_02", "category": "gem", "category_label": "Hidden gems", "title": "Best-kept secret in Marfa: rooftop garden bar above a parking garage", "summary": "No signage, take the freight elevator to the top.", "when": null, "price": null, "is_free": false, "source": "r/Marfa", "origin": "reddit", "url": "https://reddit.com/r/Marfa/comments/Marfa_02", "score": 377, "comments": 26, "confidence": 0.99, "rank_score": 413.5}, {"id": "Marfa_03", "category": "event", "category_label": "Events & gigs", "title": "Pop-up night market in Marfa this Saturday — local makers + food trucks", "summary": "Doors 5pm, free entry, runs til late.", "when": "Saturday 5pm", "price": "free", "is_free": true, "source": "r/Marfa", "origin": "reddit", "url": "https://reddit.com/r/Marfa/comments/Marfa_03", "score": 302, "comments": 41, "confidence": 0.99, "rank_score": 348.8}, {"id": "Marfa_06", "category": "news", "category_label": "Local happenings", "title": "Wildflowers are peaking right now just outside Marfa", "summary": "Best viewing this week along the river trail.", "when": "This Week", "price": null, "is_free": false, "source": "r/Marfa", "origin": "reddit", "url": "https://reddit.com/r/Marfa/comments/Marfa_06", "score": 262, "comments": 34, "confidence": 0.75, "rank_score": 199.5}, {"id": "Marfa_07", "category": "event", "category_label": "Events & gigs", "title": "Vintage flea market popping up in Marfa Sunday", "summary": "60+ vendors, vinyl, clothes, weird furniture.", "when": "Sunday 9am", "price": "free", "is_free": true, "source": "r/Marfa", "origin": "reddit", "url": "https://reddit.com/r/Marfa/comments/Marfa_07", "score": 147, "comments": 35, "confidence": 0.99, "rank_score": 178.3}, {"id": "Marfa_05", "category": "event", "category_label": "Events & gigs", "title": "Secret warehouse show in Marfa tonight — touring act, word of mouth only", "summary": "DM for the address.", "when": "Tonight 10pm", "price": "$15", "is_free": false, "source": "r/Marfa", "origin": "reddit", "url": "https://reddit.com/r/Marfa/comments/Marfa_05", "score": 180, "comments": 41, "confidence": 0.9, "rank_score": 158.4}, {"id": "Marfa_00", "category": "news", "category_label": "Local happenings", "title": "New mural just went up in Marfa — three stories, worth a detour", "summary": "Artist worked on it all week, finished today.", "when": "Today", "price": null, "is_free": false, "source": "r/Marfa", "origin": "reddit", "url": "https://reddit.com/r/Marfa/comments/Marfa_00", "score": 105, "comments": 14, "confidence": 0.99, "rank_score": 120.8}, {"id": "Marfa_01", "category": "event", "category_label": "Events & gigs", "title": "Free outdoor movie night downtown Marfa on Friday", "summary": "Showing a classic at sundown, ~8:30pm.", "when": "Friday 8:30pm", "price": "free", "is_free": true, "source": "r/Marfa", "origin": "reddit", "url": "https://reddit.com/r/Marfa/comments/Marfa_01", "score": 130, "comments": 20, "confidence": 0.99, "rank_score": 116.0}], "portland-me": [{"id": "PortlandMaine_06", "category": "gem", "category_label": "Hidden gems", "title": "Underrated Portland spot: a basement bookstore that only opens weekend nights", "summary": "Candlelit, plays jazz, owner makes tea.", "when": null, "price": null, "is_free": false, "source": "r/PortlandMaine", "origin": "reddit", "url": "https://reddit.com/r/PortlandMaine/comments/PortlandMaine_06", "score": 483, "comments": 63, "confidence": 0.99, "rank_score": 593.8}, {"id": "PortlandMaine_01", "category": "event", "category_label": "Events & gigs", "title": "Free outdoor movie night downtown Portland on Friday", "summary": "Showing a classic at sundown, ~8:30pm.", "when": "Friday 8:30pm", "price": "free", "is_free": true, "source": "r/PortlandMaine", "origin": "reddit", "url": "https://reddit.com/r/PortlandMaine/comments/PortlandMaine_01", "score": 313, "comments": 44, "confidence": 0.99, "rank_score": 342.7}, {"id": "PortlandMaine_00", "category": "gem", "category_label": "Hidden gems", "title": "Hidden gem in Portland: tiny ramen counter with no sign, cash only", "summary": "Six seats, best tonkotsu in town and nobody knows about it.", "when": null, "price": "cash only", "is_free": false, "source": "r/PortlandMaine", "origin": "reddit", "url": "https://reddit.com/r/PortlandMaine/comments/PortlandMaine_00", "score": 243, "comments": 45, "confidence": 0.83, "rank_score": 273.2}, {"id": "PortlandMaine_04", "category": "event", "category_label": "Events & gigs", "title": "Pop-up night market in Portland this Saturday — local makers + food trucks", "summary": "Doors 5pm, free entry, runs til late.", "when": "Saturday 5pm", "price": "free", "is_free": true, "source": "r/PortlandMaine", "origin": "reddit", "url": "https://reddit.com/r/PortlandMaine/comments/PortlandMaine_04", "score": 217, "comments": 56, "confidence": 0.99, "rank_score": 252.8}, {"id": "PortlandMaine_07", "category": "gem", "category_label": "Hidden gems", "title": "Best-kept secret in Portland: rooftop garden bar above a parking garage", "summary": "No signage, take the freight elevator to the top.", "when": null, "price": null, "is_free": false, "source": "r/PortlandMaine", "origin": "reddit", "url": "https://reddit.com/r/PortlandMaine/comments/PortlandMaine_07", "score": 175, "comments": 42, "confidence": 0.99, "rank_score": 252.7}, {"id": "PortlandMusic_10", "category": "event", "category_label": "Events & gigs", "title": "Pop-up night market in Portland this Saturday — local makers + food trucks", "summary": "Doors 5pm, free entry, runs til late.", "when": "Saturday 5pm", "price": "free", "is_free": true, "source": "r/PortlandMusic", "origin": "reddit", "url": "https://reddit.com/r/PortlandMusic/comments/PortlandMusic_10", "score": 257, "comments": 27, "confidence": 0.99, "rank_score": 170.1}, {"id": "PortlandMaine_05", "category": "news", "category_label": "Local happenings", "title": "Wildflowers are peaking right now just outside Portland", "summary": "Best viewing this week along the river trail.", "when": "This Week", "price": null, "is_free": false, "source": "r/PortlandMaine", "origin": "reddit", "url": "https://reddit.com/r/PortlandMaine/comments/PortlandMaine_05", "score": 159, "comments": 46, "confidence": 0.75, "rank_score": 154.7}, {"id": "rss_portland_1", "category": "event", "category_label": "Events & gigs", "title": "Outdoor film series kicks off in Portland Thursday", "summary": "A cult classic under the stars, 8:30pm, bring a chair.", "when": "Thursday 8:30pm", "price": "free", "is_free": true, "source": "Willamette Week", "origin": "rss", "url": "https://altweekly.example/portland/1", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 50.2}, {"id": "rss_portland_3", "category": "event", "category_label": "Events & gigs", "title": "Willamette Week Picks: Portland gallery crawl this Friday night", "summary": "Dozens of galleries open late downtown Portland, free, 6–10pm.", "when": "Friday 10pm", "price": "free", "is_free": true, "source": "Willamette Week", "origin": "rss", "url": "https://altweekly.example/portland/3", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 49.6}, {"id": "rss_portland_0", "category": "event", "category_label": "Events & gigs", "title": "Neighborhood block party + street fair in Portland Sunday", "summary": "Local vendors, kids' zone, two stages.", "when": "Sunday 11am", "price": "free", "is_free": true, "source": "Willamette Week", "origin": "rss", "url": "https://altweekly.example/portland/0", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 43.0}, {"id": "rss_portland_2", "category": "event", "category_label": "Events & gigs", "title": "Food truck festival rolls into Portland this Saturday", "summary": "40+ trucks, live DJ, beer garden.", "when": "Saturday 9pm", "price": "free", "is_free": true, "source": "Willamette Week", "origin": "rss", "url": "https://altweekly.example/portland/2", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 37.3}, {"id": "PortlandMusic_12", "category": "event", "category_label": "Events & gigs", "title": "Vintage flea market popping up in Portland Sunday", "summary": "60+ vendors, vinyl, clothes, weird furniture.", "when": "Sunday 9am", "price": "free", "is_free": true, "source": "r/PortlandMusic", "origin": "reddit", "url": "https://reddit.com/r/PortlandMusic/comments/PortlandMusic_12", "score": 167, "comments": 21, "confidence": 0.99, "rank_score": 20.7}, {"id": "rss_portland_4", "category": "event", "category_label": "Events & gigs", "title": "Portland farmers + makers market returns Sunday morning", "summary": "Produce, crafts, coffee, 8am–1pm at the riverfront lot.", "when": "Sunday 8am", "price": "free", "is_free": true, "source": "Willamette Week", "origin": "rss", "url": "https://altweekly.example/portland/4", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 19.9}], "new orleans": [{"id": "NOLA_05", "category": "gem", "category_label": "Hidden gems", "title": "Underrated New Orleans spot: a basement bookstore that only opens weekend nights", "summary": "Candlelit, plays jazz, owner makes tea.", "when": null, "price": null, "is_free": false, "source": "r/NOLA", "origin": "reddit", "url": "https://reddit.com/r/NOLA/comments/NOLA_05", "score": 273, "comments": 51, "confidence": 0.99, "rank_score": 362.0}, {"id": "NOLA_03", "category": "gem", "category_label": "Hidden gems", "title": "Hidden gem in New Orleans: tiny ramen counter with no sign, cash only", "summary": "Six seats, best tonkotsu in town and nobody knows about it.", "when": null, "price": "cash only", "is_free": false, "source": "r/NOLA", "origin": "reddit", "url": "https://reddit.com/r/NOLA/comments/NOLA_03", "score": 314, "comments": 42, "confidence": 0.83, "rank_score": 323.2}, {"id": "NOLA_02", "category": "news", "category_label": "Local happenings", "title": "New mural just went up in New Orleans — three stories, worth a detour", "summary": "Artist worked on it all week, finished today.", "when": "Today", "price": null, "is_free": false, "source": "r/NOLA", "origin": "reddit", "url": "https://reddit.com/r/NOLA/comments/NOLA_02", "score": 240, "comments": 16, "confidence": 0.99, "rank_score": 253.9}, {"id": "NOLA_06", "category": "gem", "category_label": "Hidden gems", "title": "Best-kept secret in New Orleans: rooftop garden bar above a parking garage", "summary": "No signage, take the freight elevator to the top.", "when": null, "price": null, "is_free": false, "source": "r/NOLA", "origin": "reddit", "url": "https://reddit.com/r/NOLA/comments/NOLA_06", "score": 152, "comments": 45, "confidence": 0.99, "rank_score": 234.9}, {"id": "NOLA_04", "category": "event", "category_label": "Events & gigs", "title": "Free outdoor movie night downtown New Orleans on Friday", "summary": "Showing a classic at sundown, ~8:30pm.", "when": "Friday 8:30pm", "price": "free", "is_free": true, "source": "r/NOLA", "origin": "reddit", "url": "https://reddit.com/r/NOLA/comments/NOLA_04", "score": 252, "comments": 20, "confidence": 0.99, "rank_score": 212.0}, {"id": "NOLA_01", "category": "event", "category_label": "Events & gigs", "title": "Vintage flea market popping up in New Orleans Sunday", "summary": "60+ vendors, vinyl, clothes, weird furniture.", "when": "Sunday 9am", "price": "free", "is_free": true, "source": "r/NOLA", "origin": "reddit", "url": "https://reddit.com/r/NOLA/comments/NOLA_01", "score": 244, "comments": 17, "confidence": 0.99, "rank_score": 211.6}, {"id": "NOLA_00", "category": "event", "category_label": "Events & gigs", "title": "Secret warehouse show in New Orleans tonight — touring act, word of mouth only", "summary": "DM for the address.", "when": "Tonight 10pm", "price": "$15", "is_free": false, "source": "r/NOLA", "origin": "reddit", "url": "https://reddit.com/r/NOLA/comments/NOLA_00", "score": 146, "comments": 42, "confidence": 0.9, "rank_score": 186.7}, {"id": "AskNOLA_12", "category": "gem", "category_label": "Hidden gems", "title": "Hidden gem in New Orleans: tiny ramen counter with no sign, cash only", "summary": "Six seats, best tonkotsu in town and nobody knows about it.", "when": null, "price": "cash only", "is_free": false, "source": "r/AskNOLA", "origin": "reddit", "url": "https://reddit.com/r/AskNOLA/comments/AskNOLA_12", "score": 159, "comments": 30, "confidence": 0.83, "rank_score": 168.3}, {"id": "NOLA_07", "category": "news", "category_label": "Local happenings", "title": "Wildflowers are peaking right now just outside New Orleans", "summary": "Best viewing this week along the river trail.", "when": "This Week", "price": null, "is_free": false, "source": "r/NOLA", "origin": "reddit", "url": "https://reddit.com/r/NOLA/comments/NOLA_07", "score": 125, "comments": 41, "confidence": 0.75, "rank_score": 131.3}, {"id": "AskNOLA_11", "category": "event", "category_label": "Events & gigs", "title": "Free outdoor movie night downtown New Orleans on Friday", "summary": "Showing a classic at sundown, ~8:30pm.", "when": "Friday 8:30pm", "price": "free", "is_free": true, "source": "r/AskNOLA", "origin": "reddit", "url": "https://reddit.com/r/AskNOLA/comments/AskNOLA_11", "score": 72, "comments": 14, "confidence": 0.99, "rank_score": 37.0}, {"id": "AskNOLA_10", "category": "news", "category_label": "Local happenings", "title": "New mural just went up in New Orleans — three stories, worth a detour", "summary": "Artist worked on it all week, finished today.", "when": "Today", "price": null, "is_free": false, "source": "r/AskNOLA", "origin": "reddit", "url": "https://reddit.com/r/AskNOLA/comments/AskNOLA_10", "score": 81, "comments": 11, "confidence": 0.99, "rank_score": 10.2}], "pittsburgh": [{"id": "Pittsburgh_04", "category": "gem", "category_label": "Hidden gems", "title": "Underrated Pittsburgh spot: a basement bookstore that only opens weekend nights", "summary": "Candlelit, plays jazz, owner makes tea.", "when": null, "price": null, "is_free": false, "source": "r/Pittsburgh", "origin": "reddit", "url": "https://reddit.com/r/Pittsburgh/comments/Pittsburgh_04", "score": 449, "comments": 68, "confidence": 0.99, "rank_score": 563.5}, {"id": "Pittsburgh_05", "category": "gem", "category_label": "Hidden gems", "title": "Hidden gem in Pittsburgh: tiny ramen counter with no sign, cash only", "summary": "Six seats, best tonkotsu in town and nobody knows about it.", "when": null, "price": "cash only", "is_free": false, "source": "r/Pittsburgh", "origin": "reddit", "url": "https://reddit.com/r/Pittsburgh/comments/Pittsburgh_05", "score": 447, "comments": 56, "confidence": 0.83, "rank_score": 461.9}, {"id": "Pittsburgh_03", "category": "event", "category_label": "Events & gigs", "title": "Secret warehouse show in Pittsburgh tonight — touring act, word of mouth only", "summary": "DM for the address.", "when": "Tonight 10pm", "price": "$15", "is_free": false, "source": "r/Pittsburgh", "origin": "reddit", "url": "https://reddit.com/r/Pittsburgh/comments/Pittsburgh_03", "score": 276, "comments": 31, "confidence": 0.9, "rank_score": 216.5}, {"id": "Pittsburgh_01", "category": "event", "category_label": "Events & gigs", "title": "Free outdoor movie night downtown Pittsburgh on Friday", "summary": "Showing a classic at sundown, ~8:30pm.", "when": "Friday 8:30pm", "price": "free", "is_free": true, "source": "r/Pittsburgh", "origin": "reddit", "url": "https://reddit.com/r/Pittsburgh/comments/Pittsburgh_01", "score": 261, "comments": 25, "confidence": 0.99, "rank_score": 214.1}, {"id": "Pittsburgh_07", "category": "news", "category_label": "Local happenings", "title": "New mural just went up in Pittsburgh — three stories, worth a detour", "summary": "Artist worked on it all week, finished today.", "when": "Today", "price": null, "is_free": false, "source": "r/Pittsburgh", "origin": "reddit", "url": "https://reddit.com/r/Pittsburgh/comments/Pittsburgh_07", "score": 179, "comments": 23, "confidence": 0.99, "rank_score": 203.1}, {"id": "Pittsburgh_02", "category": "event", "category_label": "Events & gigs", "title": "Pop-up night market in Pittsburgh this Saturday — local makers + food trucks", "summary": "Doors 5pm, free entry, runs til late.", "when": "Saturday 5pm", "price": "free", "is_free": true, "source": "r/Pittsburgh", "origin": "reddit", "url": "https://reddit.com/r/Pittsburgh/comments/Pittsburgh_02", "score": 144, "comments": 21, "confidence": 0.99, "rank_score": 170.9}, {"id": "Pittsburgh_06", "category": "event", "category_label": "Events & gigs", "title": "Vintage flea market popping up in Pittsburgh Sunday", "summary": "60+ vendors, vinyl, clothes, weird furniture.", "when": "Sunday 9am", "price": "free", "is_free": true, "source": "r/Pittsburgh", "origin": "reddit", "url": "https://reddit.com/r/Pittsburgh/comments/Pittsburgh_06", "score": 138, "comments": 26, "confidence": 0.99, "rank_score": 139.0}, {"id": "yinzer_11", "category": "event", "category_label": "Events & gigs", "title": "Vintage flea market popping up in Pittsburgh Sunday", "summary": "60+ vendors, vinyl, clothes, weird furniture.", "when": "Sunday 9am", "price": "free", "is_free": true, "source": "r/yinzer", "origin": "reddit", "url": "https://reddit.com/r/yinzer/comments/yinzer_11", "score": 73, "comments": 10, "confidence": 0.99, "rank_score": 77.1}, {"id": "rss_pittsburgh_0", "category": "event", "category_label": "Events & gigs", "title": "Outdoor film series kicks off in Pittsburgh Thursday", "summary": "A cult classic under the stars, 8:30pm, bring a chair.", "when": "Thursday 8:30pm", "price": "free", "is_free": true, "source": "Pittsburgh City Paper", "origin": "rss", "url": "https://altweekly.example/pittsburgh/0", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 55.5}, {"id": "rss_pittsburgh_3", "category": "event", "category_label": "Events & gigs", "title": "Live this weekend in Pittsburgh: indie showcase at the old theater", "summary": "Three local bands Saturday, doors 8pm, $12 advance.", "when": "Saturday 8pm", "price": "$12", "is_free": false, "source": "Pittsburgh City Paper", "origin": "rss", "url": "https://altweekly.example/pittsburgh/3", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 47.7}, {"id": "yinzer_10", "category": "event", "category_label": "Events & gigs", "title": "Secret warehouse show in Pittsburgh tonight — touring act, word of mouth only", "summary": "DM for the address.", "when": "Tonight 10pm", "price": "$15", "is_free": false, "source": "r/yinzer", "origin": "reddit", "url": "https://reddit.com/r/yinzer/comments/yinzer_10", "score": 119, "comments": 5, "confidence": 0.9, "rank_score": 36.4}, {"id": "rss_pittsburgh_4", "category": "event", "category_label": "Events & gigs", "title": "Pittsburgh farmers + makers market returns Sunday morning", "summary": "Produce, crafts, coffee, 8am–1pm at the riverfront lot.", "when": "Sunday 8am", "price": "free", "is_free": true, "source": "Pittsburgh City Paper", "origin": "rss", "url": "https://altweekly.example/pittsburgh/4", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 32.6}, {"id": "rss_pittsburgh_2", "category": "event", "category_label": "Events & gigs", "title": "Neighborhood block party + street fair in Pittsburgh Sunday", "summary": "Local vendors, kids' zone, two stages.", "when": "Sunday 11am", "price": "free", "is_free": true, "source": "Pittsburgh City Paper", "origin": "rss", "url": "https://altweekly.example/pittsburgh/2", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 24.9}, {"id": "rss_pittsburgh_1", "category": "event", "category_label": "Events & gigs", "title": "Pittsburgh City Paper Picks: Pittsburgh gallery crawl this Friday night", "summary": "Dozens of galleries open late downtown Pittsburgh, free, 6–10pm.", "when": "Friday 10pm", "price": "free", "is_free": true, "source": "Pittsburgh City Paper", "origin": "rss", "url": "https://altweekly.example/pittsburgh/1", "score": 60, "comments": 0, "confidence": 0.99, "rank_score": 8.6}], "las vegas": [{"id": "vegas_06", "category": "gem", "category_label": "Hidden gems", "title": "Best-kept secret in Las Vegas: rooftop garden bar above a parking garage", "summary": "No signage, take the freight elevator to the top.", "when": null, "price": null, "is_free": false, "source": "r/vegas", "origin": "reddit", "url": "https://reddit.com/r/vegas/comments/vegas_06", "score": 341, "comments": 54, "confidence": 0.99, "rank_score": 433.6}, {"id": "vegas_01", "category": "event", "category_label": "Events & gigs", "title": "Pop-up night market in Las Vegas this Saturday — local makers + food trucks", "summary": "Doors 5pm, free entry, runs til late.", "when": "Saturday 5pm", "price": "free", "is_free": true, "source": "r/vegas", "origin": "reddit", "url": "https://reddit.com/r/vegas/comments/vegas_01", "score": 344, "comments": 64, "confidence": 0.99, "rank_score": 313.5}, {"id": "vegas_04", "category": "news", "category_label": "Local happenings", "title": "Wildflowers are peaking right now just outside Las Vegas", "summary": "Best viewing this week along the river trail.", "when": "This Week", "price": null, "is_free": false, "source": "r/vegas", "origin": "reddit", "url": "https://reddit.com/r/vegas/comments/vegas_04", "score": 340, "comments": 28, "confidence": 0.75, "rank_score": 290.1}, {"id": "vegas_05", "category": "gem", "category_label": "Hidden gems", "title": "Hidden gem in Las Vegas: tiny ramen counter with no sign, cash only", "summary": "Six seats, best tonkotsu in town and nobody knows about it.", "when": null, "price": "cash only", "is_free": false, "source": "r/vegas", "origin": "reddit", "url": "https://reddit.com/r/vegas/comments/vegas_05", "score": 224, "comments": 39, "confidence": 0.83, "rank_score": 242.6}, {"id": "vegas_03", "category": "event", "category_label": "Events & gigs", "title": "Vintage flea market popping up in Las Vegas Sunday", "summary": "60+ vendors, vinyl, clothes, weird furniture.", "when": "Sunday 9am", "price": "free", "is_free": true, "source": "r/vegas", "origin": "reddit", "url": "https://reddit.com/r/vegas/comments/vegas_03", "score": 135, "comments": 15, "confidence": 0.99, "rank_score": 136.4}]}, "meta": {"austin": {"city": "Austin", "region": null, "status": "ok", "note": "Pulled from Reddit, Local paper.", "subreddits": ["(curated)"], "sources": [{"label": "Reddit", "status": "ok", "count": 8}, {"label": "Local paper", "status": "ok", "count": 5}]}, "portland-or": {"city": "Portland", "region": "OR", "status": "ok", "note": "Pulled from Reddit, Local paper.", "subreddits": ["(curated)"], "sources": [{"label": "Reddit", "status": "ok", "count": 7}, {"label": "Local paper", "status": "ok", "count": 5}]}, "nyc": {"city": "NYC", "region": null, "status": "ok", "note": "Pulled from Reddit, Local paper.", "subreddits": ["(curated)"], "sources": [{"label": "Reddit", "status": "ok", "count": 6}, {"label": "Local paper", "status": "ok", "count": 5}]}, "chicago": {"city": "Chicago", "region": null, "status": "ok", "note": "Pulled from Reddit, Local paper.", "subreddits": ["chicago", "chicagofood", "chibeer"], "sources": [{"label": "Reddit", "status": "ok", "count": 14}, {"label": "Local paper", "status": "ok", "count": 5}]}, "seattle": {"city": "Seattle", "region": null, "status": "ok", "note": "Pulled from Reddit, Local paper.", "subreddits": ["Seattle", "SeattleWA", "SeattleMusic"], "sources": [{"label": "Reddit", "status": "ok", "count": 14}, {"label": "Local paper", "status": "ok", "count": 5}]}, "asheville": {"city": "Asheville", "region": "NC", "status": "ok", "note": "Pulled from Reddit, Local paper.", "subreddits": ["asheville"], "sources": [{"label": "Reddit", "status": "ok", "count": 8}, {"label": "Local paper", "status": "ok", "count": 5}]}, "durham": {"city": "Durham", "region": "NC", "status": "ok", "note": "Pulled from Reddit, Local paper.", "subreddits": ["bullcity", "Durham"], "sources": [{"label": "Reddit", "status": "ok", "count": 11}, {"label": "Local paper", "status": "ok", "count": 5}]}, "boise": {"city": "Boise", "region": "ID", "status": "ok", "note": "Pulled from Reddit, Local paper.", "subreddits": ["Boise"], "sources": [{"label": "Reddit", "status": "ok", "count": 8}, {"label": "Local paper", "status": "ok", "count": 5}]}, "savannah": {"city": "Savannah", "region": "GA", "status": "ok", "note": "Pulled from Reddit, Local paper.", "subreddits": ["savannah"], "sources": [{"label": "Reddit", "status": "ok", "count": 8}, {"label": "Local paper", "status": "ok", "count": 5}]}, "marfa": {"city": "Marfa", "region": "TX", "status": "quiet", "note": "r/Marfa is small or quiet — results may be thin.", "subreddits": ["Marfa"], "sources": [{"label": "Reddit", "status": "quiet", "count": 8}, {"label": "Local paper", "status": "none", "count": 0}]}, "portland-me": {"city": "Portland", "region": "ME", "status": "ok", "note": "Pulled from Reddit, Local paper.", "subreddits": ["PortlandMaine", "PortlandMusic"], "sources": [{"label": "Reddit", "status": "ok", "count": 11}, {"label": "Local paper", "status": "ok", "count": 5}]}, "new orleans": {"city": "New Orleans", "region": null, "status": "ok", "note": "Pulled from Reddit.", "subreddits": ["NOLA", "AskNOLA"], "sources": [{"label": "Reddit", "status": "ok", "count": 11}, {"label": "Local paper", "status": "none", "count": 0}]}, "pittsburgh": {"city": "Pittsburgh", "region": null, "status": "ok", "note": "Pulled from Reddit, Local paper.", "subreddits": ["Pittsburgh", "yinzer"], "sources": [{"label": "Reddit", "status": "ok", "count": 11}, {"label": "Local paper", "status": "ok", "count": 5}]}, "las vegas": {"city": "Las Vegas", "region": null, "status": "ok", "note": "Pulled from Reddit.", "subreddits": ["vegas"], "sources": [{"label": "Reddit", "status": "ok", "count": 8}, {"label": "Local paper", "status": "none", "count": 0}]}}, "geo": {"cities": {"Austin": {"lat": 30.2672, "lng": -97.7431, "region": "TX"}, "Portland": {"lat": 45.5152, "lng": -122.6784, "region": "OR"}, "NYC": {"lat": 40.7128, "lng": -74.006, "region": "NY"}, "Chicago": {"lat": 41.8781, "lng": -87.6298, "region": "IL"}, "Seattle": {"lat": 47.6062, "lng": -122.3321, "region": "WA"}, "Asheville": {"lat": 35.5951, "lng": -82.5515, "region": "NC"}, "Durham": {"lat": 35.994, "lng": -78.8986, "region": "NC"}, "Boise": {"lat": 43.615, "lng": -116.2023, "region": "ID"}, "Savannah": {"lat": 32.0809, "lng": -81.0912, "region": "GA"}, "Marfa": {"lat": 30.3094, "lng": -104.0205, "region": "TX"}, "New Orleans": {"lat": 29.9511, "lng": -90.0715, "region": "LA"}, "Pittsburgh": {"lat": 40.4406, "lng": -79.9959, "region": "PA"}, "Las Vegas": {"lat": 36.1699, "lng": -115.1398, "region": "NV"}}, "zips": {"78701": {"city": "Austin", "region": "TX"}, "97201": {"city": "Portland", "region": "OR"}, "04101": {"city": "Portland", "region": "ME"}, "10001": {"city": "NYC", "region": "NY"}, "60601": {"city": "Chicago", "region": "IL"}, "98101": {"city": "Seattle", "region": "WA"}, "28801": {"city": "Asheville", "region": "NC"}, "27701": {"city": "Durham", "region": "NC"}, "83702": {"city": "Boise", "region": "ID"}, "31401": {"city": "Savannah", "region": "GA"}, "70112": {"city": "New Orleans", "region": "LA"}, "15222": {"city": "Pittsburgh", "region": "PA"}, "89101": {"city": "Las Vegas", "region": "NV"}}}};
+
+const CAT_LABEL = {event:"Events & gigs", gem:"Hidden gems", news:"Local happenings"};
+let activeCat = "all";
+let current = [];      // current happenings
+let currentMeta = {};  // {city, region, status, note, subreddits}
+
+/* ---------- screen routing ---------- */
+function go(id){
+  document.querySelectorAll(".screen,#door,#locate,#feed-screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  window.scrollTo(0,0);
+}
+
+/* ---------- resolve: name / zip / gps -> city ---------- */
+function haversine(a,b,c,d){
+  const R=6371,r=x=>x*Math.PI/180;
+  const dl=r(c-a),dn=r(d-b);
+  const x=Math.sin(dl/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dn/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+function nearestCity(lat,lng){
+  let best=null,bd=1e9;
+  for(const [name,v] of Object.entries(DATA.geo.cities)){
+    const dist=haversine(lat,lng,v.lat,v.lng);
+    if(dist<bd){bd=dist;best={city:name,region:v.region,dist};}
+  }
+  return best;
+}
+async function resolveLocal({city,zip,lat,lng,region}){
+  if(LIVE){
+    try{
+      const qs=new URLSearchParams();
+      if(city)qs.set("city",city); if(zip)qs.set("zip",zip);
+      if(region)qs.set("region",region);
+      if(lat!=null){qs.set("lat",lat);qs.set("lng",lng);}
+      const r=await fetch(`${API_BASE}/resolve?${qs}`);
+      if(r.ok){ const j=await r.json(); if(region&&!j.region)j.region=region; return j; }
+    }catch(_){ /* fall through to embedded */ }
+  }
+  if(city) return {city,region:region||null,note:null};
+  if(zip){
+    const hit=DATA.geo.zips[String(zip).slice(0,5)];
+    return hit?{city:hit.city,region:hit.region,note:null}
+              :{city:null,note:`ZIP ${zip} isn't in the demo data — try a city name.`};
+  }
+  if(lat!=null){
+    const n=nearestCity(lat,lng);
+    return {city:n.city,region:n.region,note:n.dist>60?`Nearest covered city is ${n.city} (~${Math.round(n.dist)} km away).`:null};
+  }
+  return {city:null,note:"Need a city, ZIP, or location."};
+}
+
+/* ---------- fetch happenings for a resolved city ---------- */
+function keyFor(city,region){
+  const k=city.toLowerCase();
+  if(k==="portland" && region) return "portland-"+region.toLowerCase();
+  return k;
+}
+async function fetchHappenings(city,region){
+  if(LIVE){
+    try{
+      const qs=new URLSearchParams({city}); if(region)qs.set("region",region);
+      const r=await fetch(`${API_BASE}/happenings?${qs}`);
+      if(r.ok) return await r.json();
+    }catch(_){ /* fall through to embedded */ }
+  }
+  // standalone: look up embedded results
+  // ambiguity: bare "Portland" with no region -> offer choice
+  if(city.toLowerCase()==="portland" && !region){
+    return {city,status:"ambiguous",happenings:[],
+      alternatives:[{region:"OR",example_sub:"Portland",subscribers:520000},
+                    {region:"ME",example_sub:"PortlandMaine",subscribers:34000}],
+      note:"More than one Portland. Which one?"};
+  }
+  const key=keyFor(city,region);
+  const m=DATA.meta[key];
+  const h=DATA.seed[key];
+  if(!m||!h) return {city,status:"none",happenings:[],note:`No active Reddit community found for ${city}.`};
+  return {city,region,status:m.status,note:m.note,subreddits:m.subreddits,sources:m.sources||[],happenings:h};
+}
+
+/* ---------- rendering ---------- */
+function esc(s){return (s||"").replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function isTonight(h){const w=(h.when||"").toLowerCase();return w.includes("tonight")||w.includes("today");}
+
+/* ---- client-side .ics generation (standalone mode) ---- */
+const WK={monday:0,tuesday:1,wednesday:2,thursday:3,friday:4,saturday:5,sunday:6};
+function parseWhen(when){
+  if(!when) return {start:null,hasTime:false};
+  const w=when.toLowerCase(); const now=new Date(); let day=null;
+  if(w.includes("today")||w.includes("tonight")) day=new Date(now);
+  else if(w.includes("tomorrow")){day=new Date(now);day.setDate(day.getDate()+1);}
+  else{for(const[n,i]of Object.entries(WK)){if(w.includes(n)){day=new Date(now);day.setDate(day.getDate()+((i-day.getDay()+7)%7));break;}}}
+  if(!day&&(w.includes("weekend"))){day=new Date(now);day.setDate(day.getDate()+((5-day.getDay()+7)%7));}
+  if(!day&&w.includes("this week")) day=new Date(now);
+  if(!day) return {start:null,hasTime:false};
+  const m=w.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/);
+  if(m){let h=parseInt(m[1])%12; if(m[3]==="pm")h+=12; day.setHours(h,parseInt(m[2]||"0"),0,0); return {start:day,hasTime:true};}
+  day.setHours(0,0,0,0); return {start:day,hasTime:false};
+}
+function pad(n){return String(n).padStart(2,"0");}
+function fmtDT(d){return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;}
+function fmtDATE(d){return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;}
+function icsEscape(s){return (s||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\n/g,"\\n");}
+function buildICS(h){
+  const {start,hasTime}=parseWhen(h.when);
+  const stamp=fmtDT(new Date())+"Z";
+  const uid="cityscope-"+Math.abs(hashStr(h.title+(h.when||"")))+"@cityscope.app";
+  let L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//CityScope//EN","CALSCALE:GREGORIAN","BEGIN:VEVENT",
+    "UID:"+uid,"DTSTAMP:"+stamp,"SUMMARY:"+icsEscape(h.title)];
+  if(start&&hasTime){const e=new Date(start.getTime()+2*3600*1000);L.push("DTSTART:"+fmtDT(start),"DTEND:"+fmtDT(e));}
+  else if(start){const e=new Date(start.getTime()+86400000);L.push("DTSTART;VALUE=DATE:"+fmtDATE(start),"DTEND;VALUE=DATE:"+fmtDATE(e));}
+  else{L.push("DTSTART;VALUE=DATE:"+fmtDATE(new Date()));}
+  let desc=h.summary||""; if(!(start&&hasTime)&&h.when)desc=(desc+`\n\n(Time approximate — listing said: ${h.when})`).trim();
+  if(desc)L.push("DESCRIPTION:"+icsEscape(desc));
+  if(h.url)L.push("URL:"+icsEscape(h.url));
+  L.push("END:VEVENT","END:VCALENDAR");
+  return L.join("\r\n")+"\r\n";
+}
+function hashStr(s){let h=0;for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))|0;}return h;}
+function downloadICS(h){
+  if(LIVE){
+    const qs=new URLSearchParams({title:h.title,when:h.when||"",summary:h.summary||"",url:h.url||""});
+    window.location.href=`${API_BASE}/ics?${qs}`; return;
+  }
+  const blob=new Blob([buildICS(h)],{type:"text/calendar"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="event.ics"; document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},100);
+}
+
+const ORIGIN_LABEL={reddit:"Reddit",rss:"Local paper"};
+
+function cardHTML(h,idx){
+  const pills=[];
+  if(h.when) pills.push(`<span class="pill when">${isTonight(h)?`<span class="live"><span class="dot"></span>${esc(h.when)}</span>`:esc(h.when)}</span>`);
+  if(h.is_free) pills.push(`<span class="pill free">FREE</span>`);
+  else if(h.price) pills.push(`<span class="pill">${esc(h.price)}</span>`);
+  if(h.origin==="reddit" && h.score) pills.push(`<span class="pill">▲ ${h.score}</span>`);
+  const cal = (h.category==="event")
+    ? `<button class="calbtn" data-idx="${idx}" title="Add to calendar">
+         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+         Add to calendar</button>` : "";
+  return `<article class="card" data-cat="${h.category}" data-origin="${h.origin||'reddit'}">
+    <a class="wrap" href="${h.url}" target="_blank" rel="noopener">
+      <span class="kicker">${CAT_LABEL[h.category]||h.category}</span>
+      <div class="title">${esc(h.title)}</div>
+      <div class="summary">${esc(h.summary)}</div>
+      <div class="meta">${pills.join("")}<span class="stamp ${h.origin==='rss'?'paper':''}">${esc(h.source)}</span></div>
+    </a>
+    ${cal}
+  </article>`;
+}
+
+function renderFeed(){
+  const feed=document.getElementById("feed");
+  const m=currentMeta;
+  document.getElementById("placeName").textContent = m.displayCity || m.city || "";
+
+  // source note line — now shows ALL contributing sources, not just Reddit
+  const note=document.getElementById("srcNote");
+  if(m.status==="ok"||m.status==="quiet"){
+    let parts=[];
+    const subs=(m.subreddits||[]).filter(s=>s&&s!=="(curated)");
+    if(subs.length) parts.push(subs.slice(0,3).map(s=>`r/${s}`).join(" "));
+    else if((m.subreddits||[]).includes("(curated)")) parts.push("curated sample");
+    (m.sources||[]).forEach(s=>{
+      if(s.label==="Local paper" && s.count>0) parts.push("local paper");
+    });
+    note.innerHTML = `<span class="badge">scanning</span> ${esc(parts.join("  ·  "))}`;
+  } else note.innerHTML="";
+
+  // ambiguous / none -> panel
+  if(m.status==="ambiguous"){
+    document.getElementById("count").textContent="";
+    feed.innerHTML = `<div class="panel"><h3>More than one ${esc(m.city)}</h3>
+      <p>Which one did you mean?</p><div class="alts">
+      ${m.alternatives.map(a=>`<button class="alt" data-region="${a.region}">${esc(m.city)}, ${a.region}</button>`).join("")}
+      </div></div>`;
+    feed.querySelectorAll(".alt").forEach(b=>b.addEventListener("click",()=>{
+      loadCity(m.city, b.dataset.region);
+    }));
+    return;
+  }
+  if(m.status==="none"){
+    document.getElementById("count").textContent="";
+    feed.innerHTML = `<div class="panel"><h3>It's quiet out there</h3>
+      <p>${esc(m.note||"No active community found for "+m.city+".")}</p>
+      <div class="alts"><button class="alt" id="tryAnother">Try another place</button></div></div>`;
+    feed.querySelector("#tryAnother").addEventListener("click",()=>go("locate"));
+    return;
+  }
+
+  const items = activeCat==="all"?current:current.filter(h=>h.category===activeCat);
+  document.getElementById("count").textContent =
+    items.length?`${items.length} thing${items.length>1?"s":""} worth knowing`:"";
+
+  let html="";
+  if(m.status==="quiet"){
+    html += `<div class="quiet-banner">⚠ ${esc(m.note||"This place is small or quiet — results may be thin.")}</div>`;
+  }
+  html += items.length? items.map((h,i)=>cardHTML(h,i)).join("")
+        : `<div class="panel"><h3>Nothing in this lane</h3><p>Try another filter.</p></div>`;
+  feed.innerHTML=html;
+
+  // wire calendar buttons (event cards only)
+  feed.querySelectorAll(".calbtn").forEach(b=>b.addEventListener("click",e=>{
+    e.preventDefault(); e.stopPropagation();
+    const idx=parseInt(b.dataset.idx,10);
+    downloadICS(items[idx]);
+    b.classList.add("added"); b.innerHTML="✓ Added";
+    setTimeout(()=>{b.classList.remove("added");},2000);
+  }));
+}
+
+/* ---------- load a city end to end ---------- */
+async function loadCity(city, region){
+  const data = await fetchHappenings(city, region);
+  current = data.happenings || [];
+  currentMeta = {
+    city: data.city||city, region:region||data.region||null,
+    displayCity: (region||data.region) ? `${data.city||city}, ${region||data.region}` : (data.city||city),
+    status:data.status, note:data.note||data.discovery_note,
+    subreddits:data.subreddits||[], alternatives:data.alternatives||[],
+    sources:data.sources||[],
+  };
+  activeCat="all";
+  document.querySelectorAll(".chip").forEach(c=>c.setAttribute("aria-pressed", c.dataset.cat==="all"?"true":"false"));
+  go("feed-screen");
+  renderFeed();
+}
+
+/* ---------- locate actions ---------- */
+function setMsg(t){document.getElementById("locateMsg").textContent=t||"";}
+
+async function doResolve(opts){
+  setMsg("");
+  const r = await resolveLocal(opts);
+  if(!r.city){ setMsg(r.note||"Couldn't figure that out — try a city name."); return; }
+  if(r.note) setMsg(r.note);
+  loadCity(r.city, r.region);
+}
+
+/* ---------- wire up ---------- */
+document.getElementById("tapin").addEventListener("click",()=>go("locate"));
+document.querySelectorAll(".back").forEach(b=>b.addEventListener("click",()=>go(b.dataset.to)));
+document.getElementById("changeCity").addEventListener("click",()=>go("locate"));
+document.getElementById("homeMark").addEventListener("click",()=>go("door"));
+
+document.getElementById("gps").addEventListener("click",()=>{
+  if(!navigator.geolocation){ setMsg("Location isn't available — enter a city instead."); return; }
+  setMsg("Finding you…");
+  navigator.geolocation.getCurrentPosition(
+    pos=>doResolve({lat:pos.coords.latitude,lng:pos.coords.longitude}),
+    ()=>setMsg("Couldn't get your location — enter a city or ZIP instead."),
+    {timeout:8000}
+  );
+});
+
+document.querySelectorAll(".entry button").forEach(b=>b.addEventListener("click",()=>{
+  if(b.dataset.mode==="city"){
+    acChooseTopOrText();
+  }else{
+    const v=document.getElementById("zipInput").value.trim();
+    if(v) doResolve({zip:v});
+  }
+}));
+document.getElementById("zipInput").addEventListener("keydown",e=>{if(e.key==="Enter"){const v=e.target.value.trim();if(v)doResolve({zip:v});}});
+
+/* ---------- city autocomplete ---------- */
+const US_CITIES = [["New York","NY"],["Los Angeles","CA"],["Chicago","IL"],["Houston","TX"],["Phoenix","AZ"],["Philadelphia","PA"],["San Antonio","TX"],["San Diego","CA"],["Dallas","TX"],["San Jose","CA"],["Austin","TX"],["Jacksonville","FL"],["Fort Worth","TX"],["Columbus","OH"],["Charlotte","NC"],["San Francisco","CA"],["Indianapolis","IN"],["Seattle","WA"],["Denver","CO"],["Washington","DC"],["Boston","MA"],["El Paso","TX"],["Nashville","TN"],["Detroit","MI"],["Oklahoma City","OK"],["Portland","OR"],["Memphis","TN"],["Las Vegas","NV"],["Louisville","KY"],["Baltimore","MD"],["Milwaukee","WI"],["Albuquerque","NM"],["Tucson","AZ"],["Fresno","CA"],["Sacramento","CA"],["Mesa","AZ"],["Atlanta","GA"],["Kansas City","MO"],["Colorado Springs","CO"],["Omaha","NE"],["Raleigh","NC"],["Miami","FL"],["Long Beach","CA"],["Virginia Beach","VA"],["Oakland","CA"],["Minneapolis","MN"],["Tulsa","OK"],["Tampa","FL"],["Arlington","TX"],["New Orleans","LA"],["Wichita","KS"],["Cleveland","OH"],["Bakersfield","CA"],["Aurora","CO"],["Anaheim","CA"],["Honolulu","HI"],["Santa Ana","CA"],["Riverside","CA"],["Corpus Christi","TX"],["Lexington","KY"],["Henderson","NV"],["Stockton","CA"],["Cincinnati","OH"],["Saint Paul","MN"],["Irvine","CA"],["Orlando","FL"],["Pittsburgh","PA"],["St. Louis","MO"],["Greensboro","NC"],["Lincoln","NE"],["Anchorage","AK"],["Plano","TX"],["Newark","NJ"],["Durham","NC"],["Buffalo","NY"],["Toledo","OH"],["Chula Vista","CA"],["Fort Wayne","IN"],["Gilbert","AZ"],["St. Petersburg","FL"],["Laredo","TX"],["Jersey City","NJ"],["Chandler","AZ"],["Madison","WI"],["Lubbock","TX"],["Scottsdale","AZ"],["Irving","TX"],["Reno","NV"],["Glendale","AZ"],["North Las Vegas","NV"],["Chesapeake","VA"],["Garland","TX"],["Norfolk","VA"],["Fremont","CA"],["Richmond","VA"],["Boise","ID"],["Hialeah","FL"],["Spokane","WA"],["Baton Rouge","LA"],["Tacoma","WA"],["San Bernardino","CA"],["Modesto","CA"],["Huntsville","AL"],["Des Moines","IA"],["Santa Clarita","CA"],["Fayetteville","NC"],["Birmingham","AL"],["Oxnard","CA"],["Moreno Valley","CA"],["Fontana","CA"],["Columbus","GA"],["Rochester","NY"],["Port St. Lucie","FL"],["Glendale","CA"],["Grand Rapids","MI"],["Salt Lake City","UT"],["Frisco","TX"],["Yonkers","NY"],["Amarillo","TX"],["Huntington Beach","CA"],["McKinney","TX"],["Montgomery","AL"],["Augusta","GA"],["Akron","OH"],["Little Rock","AR"],["Grand Prairie","TX"],["Tempe","AZ"],["Overland Park","KS"],["Tallahassee","FL"],["Cape Coral","FL"],["Sioux Falls","SD"],["Mobile","AL"],["Knoxville","TN"],["Shreveport","LA"],["Worcester","MA"],["Ontario","CA"],["Vancouver","WA"],["Chattanooga","TN"],["Brownsville","TX"],["Fort Lauderdale","FL"],["Aurora","IL"],["Providence","RI"],["Newport News","VA"],["Santa Rosa","CA"],["Rancho Cucamonga","CA"],["Elk Grove","CA"],["Peoria","AZ"],["Oceanside","CA"],["Salem","OR"],["Eugene","OR"],["Garden Grove","CA"],["Pembroke Pines","FL"],["Cary","NC"],["Fort Collins","CO"],["Corona","CA"],["Springfield","MO"],["Clarksville","TN"],["Salinas","CA"],["Hayward","CA"],["Jackson","MS"],["Lancaster","CA"],["Alexandria","VA"],["Lakewood","CO"],["Palmdale","CA"],["Sunnyvale","CA"],["Springfield","MA"],["Pasadena","TX"],["Macon","GA"],["Killeen","TX"],["Hollywood","FL"],["Kansas City","KS"],["Murfreesboro","TN"],["Pomona","CA"],["Escondido","CA"],["Charleston","SC"],["Naperville","IL"],["Bellevue","WA"],["Joliet","IL"],["Torrance","CA"],["Rockford","IL"],["Midland","TX"],["Savannah","GA"],["Paterson","NJ"],["Bridgeport","CT"],["McAllen","TX"],["Syracuse","NY"],["Thornton","CO"],["Surprise","AZ"],["Roseville","CA"],["Visalia","CA"],["Olathe","KS"],["Gainesville","FL"],["Pasadena","CA"],["Mesquite","TX"],["Fullerton","CA"],["Miramar","FL"],["Dayton","OH"],["Orange","CA"],["Denton","TX"],["Carrollton","TX"],["Waco","TX"],["Cedar Rapids","IA"],["Kent","WA"],["West Valley City","UT"],["Warren","MI"],["Hampton","VA"],["Coral Springs","FL"],["Round Rock","TX"],["Sterling Heights","MI"],["Columbia","SC"],["New Haven","CT"],["Stamford","CT"],["Concord","CA"],["Elizabeth","NJ"],["Norman","OK"],["Santa Clara","CA"],["Athens","GA"],["Thousand Oaks","CA"],["Lafayette","LA"],["Fargo","ND"],["Topeka","KS"],["Pearland","TX"],["Simi Valley","CA"],["Abilene","TX"],["Ann Arbor","MI"],["Wilmington","NC"],["Odessa","TX"],["Columbia","MO"],["Victorville","CA"],["Berkeley","CA"],["Allentown","PA"],["Rochester","MN"],["Vallejo","CA"],["Hartford","CT"],["College Station","TX"],["Arvada","CO"],["Clovis","CA"],["Fairfield","CA"],["Palm Bay","FL"],["Richardson","TX"],["Sugar Land","TX"],["Cambridge","MA"],["Beaumont","TX"],["Lansing","MI"],["Murrieta","CA"],["Evansville","IN"],["Meridian","ID"],["West Palm Beach","FL"],["Independence","MO"],["Clearwater","FL"],["West Jordan","UT"],["Provo","UT"],["Westminster","CO"],["North Charleston","SC"],["Carlsbad","CA"],["El Monte","CA"],["Manchester","NH"],["Lowell","MA"],["Temecula","CA"],["Fhe Woodlands","TX"],["Springfield","IL"],["High Point","NC"],["Costa Mesa","CA"],["Lakeland","FL"],["Antioch","CA"],["Elgin","IL"],["Pueblo","CO"],["Pompano Beach","FL"],["Lewisville","TX"],["Downey","CA"],["Miami Gardens","FL"],["Everett","WA"],["Richmond","CA"],["Gresham","OR"],["Peoria","IL"],["Broken Arrow","OK"],["Inglewood","CA"],["Billings","MT"],["Greeley","CO"],["Centennial","CO"],["Sandy Springs","GA"],["Waterbury","CT"],["League City","TX"],["Santa Maria","CA"],["Tyler","TX"],["Renton","WA"],["Hillsboro","OR"],["Ventura","CA"],["Davie","FL"],["Lakewood","NJ"],["Daly City","CA"],["Boulder","CO"],["Brockton","MA"],["Allen","TX"],["West Covina","CA"],["Jurupa Valley","CA"],["Sparks","NV"],["Wichita Falls","TX"],["San Mateo","CA"],["Green Bay","WI"],["Norwalk","CA"],["Rialto","CA"],["Burbank","CA"],["Spokane Valley","WA"],["South Bend","IN"],["Davenport","IA"],["Vista","CA"],["Quincy","MA"],["Edinburg","TX"],["Tuscaloosa","AL"],["Carmel","IN"],["Yakima","WA"],["New Bedford","MA"],["Erie","PA"],["Asheville","NC"],["Bismarck","ND"],["Portland","ME"],["Cheyenne","WY"],["Charleston","WV"],["Burlington","VT"],["Marfa","TX"]];
+// names that appear in more than one state (so we always show the state for them)
+const _DUPE_NAMES = (()=>{const c={};US_CITIES.forEach(([n])=>c[n]=(c[n]||0)+1);
+  return new Set(Object.keys(c).filter(n=>c[n]>1));})();
+
+const cityInput=document.getElementById("cityInput");
+const acList=document.getElementById("acList");
+let acMatches=[]; let acActive=-1;
+
+function acFilter(q){
+  q=q.trim().toLowerCase();
+  if(!q) return [];
+  const starts=[], contains=[];
+  for(const [c,s] of US_CITIES){
+    const cl=c.toLowerCase();
+    if(cl.startsWith(q)) starts.push([c,s]);
+    else if(cl.includes(q)) contains.push([c,s]);
+    if(starts.length>=8) break;
+  }
+  return starts.concat(contains).slice(0,8);
+}
+
+function acRender(){
+  if(!acMatches.length){ acClose(); return; }
+  acList.innerHTML = acMatches.map(([c,s],i)=>{
+    const dupe = _DUPE_NAMES.has(c) ? `<span class="ac-dupe">${c} also in other states</span>` : "";
+    return `<div class="ac-item${i===acActive?' active':''}" role="option" data-i="${i}">
+      <span class="ac-city">${esc(c)}</span><span class="ac-state">${esc(s)}</span>${dupe}</div>`;
+  }).join("");
+  acList.classList.add("open");
+  cityInput.setAttribute("aria-expanded","true");
+  acList.querySelectorAll(".ac-item").forEach(el=>{
+    el.addEventListener("mousedown",ev=>{ // mousedown beats blur
+      ev.preventDefault();
+      acPick(parseInt(el.dataset.i,10));
+    });
+  });
+}
+function acClose(){ acList.classList.remove("open"); cityInput.setAttribute("aria-expanded","false"); acActive=-1; }
+
+function acPick(i){
+  const m=acMatches[i]; if(!m) return;
+  const [c,s]=m;
+  cityInput.value = `${c}, ${s}`;
+  acClose();
+  // pass the state as region so same-name cities never hit the "which one?" screen
+  doResolve({city:c, region:s});
+}
+
+function acChooseTopOrText(){
+  if(acMatches.length){ acPick(acActive>=0?acActive:0); return; }
+  const v=cityInput.value.trim();
+  if(!v) return;
+  // allow "City, ST" typed manually
+  const m=v.match(/^(.+),\s*([A-Za-z]{2})$/);
+  if(m) doResolve({city:m[1].trim(), region:m[2].toUpperCase()});
+  else doResolve({city:v});
+}
+
+cityInput.addEventListener("input",()=>{
+  acMatches=acFilter(cityInput.value); acActive=-1; acRender();
+});
+cityInput.addEventListener("keydown",e=>{
+  if(acList.classList.contains("open") && acMatches.length){
+    if(e.key==="ArrowDown"){e.preventDefault();acActive=(acActive+1)%acMatches.length;acRender();return;}
+    if(e.key==="ArrowUp"){e.preventDefault();acActive=(acActive-1+acMatches.length)%acMatches.length;acRender();return;}
+    if(e.key==="Escape"){acClose();return;}
+  }
+  if(e.key==="Enter"){ e.preventDefault(); acChooseTopOrText(); }
+});
+cityInput.addEventListener("blur",()=>setTimeout(acClose,120));
+
+document.getElementById("chips").addEventListener("click",e=>{
+  const b=e.target.closest(".chip"); if(!b)return;
+  activeCat=b.dataset.cat;
+  document.querySelectorAll(".chip").forEach(c=>c.setAttribute("aria-pressed",c===b?"true":"false"));
+  renderFeed();
+});
+
+/* ---------- startup: probe the API, register the PWA service worker ---------- */
+probeApi();  // sets LIVE=true if the backend is serving us
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>{
+    navigator.serviceWorker.register("sw.js").catch(()=>{ /* offline cache is optional */ });
+  });
+}
+</script>
+</body>
+</html>

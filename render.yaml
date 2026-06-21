@@ -1,0 +1,19 @@
+# Render.com blueprint — push to GitHub, then "New > Blueprint" and pick this repo.
+services:
+  - type: web
+    name: cityscope
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn cityscope.api.app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: CITYSCOPE_LIVE_RSS
+        value: "false"        # flip to true for real alt-weekly feeds (no keys)
+      - key: CITYSCOPE_LIVE_GEOCODE
+        value: "false"        # flip to true for real GPS reverse-geocoding (no keys)
+      - key: CITYSCOPE_LIVE_REDDIT
+        value: "false"        # needs the REDDIT_* secrets below to be set
+      - key: CITYSCOPE_LOG_LEVEL
+        value: "INFO"
+      # Set these in the Render dashboard (Environment) if going live with Reddit:
+      # REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USERNAME

@@ -1,0 +1,18 @@
+# Fly.io config. Run: fly launch (accepts this), then fly deploy.
+app = "cityscope"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[env]
+  CITYSCOPE_LIVE_RSS = "false"
+  CITYSCOPE_LIVE_GEOCODE = "false"
+  CITYSCOPE_LOG_LEVEL = "INFO"
