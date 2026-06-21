@@ -213,6 +213,7 @@
   .stamp{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;text-transform:uppercase;
     letter-spacing:.08em;color:var(--stamp);border:1.5px solid var(--stamp);padding:2px 7px;border-radius:2px;transform:rotate(-2deg);margin-left:auto}
   .stamp.paper{color:var(--rose);border-color:var(--rose);transform:rotate(1.5deg)}
+  .stamp.sky{color:var(--amber);border-color:var(--amber);transform:rotate(-1deg)}
 
   /* add-to-calendar button on event cards */
   .calbtn{
@@ -458,7 +459,7 @@ function downloadICS(h){
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},100);
 }
 
-const ORIGIN_LABEL={reddit:"Reddit",rss:"Local paper"};
+const ORIGIN_LABEL={reddit:"Reddit",rss:"Local paper",bluesky:"Bluesky"};
 
 function cardHTML(h,idx){
   const pills=[];
@@ -466,16 +467,18 @@ function cardHTML(h,idx){
   if(h.is_free) pills.push(`<span class="pill free">FREE</span>`);
   else if(h.price) pills.push(`<span class="pill">${esc(h.price)}</span>`);
   if(h.origin==="reddit" && h.score) pills.push(`<span class="pill">▲ ${h.score}</span>`);
+  if(h.origin==="bluesky" && h.score) pills.push(`<span class="pill">♥ ${h.score}</span>`);
   const cal = (h.category==="event")
     ? `<button class="calbtn" data-idx="${idx}" title="Add to calendar">
          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
          Add to calendar</button>` : "";
+  const stampClass = h.origin==='rss' ? 'paper' : (h.origin==='bluesky' ? 'sky' : '');
   return `<article class="card" data-cat="${h.category}" data-origin="${h.origin||'reddit'}">
     <a class="wrap" href="${h.url}" target="_blank" rel="noopener">
       <span class="kicker">${CAT_LABEL[h.category]||h.category}</span>
       <div class="title">${esc(h.title)}</div>
       <div class="summary">${esc(h.summary)}</div>
-      <div class="meta">${pills.join("")}<span class="stamp ${h.origin==='rss'?'paper':''}">${esc(h.source)}</span></div>
+      <div class="meta">${pills.join("")}<span class="stamp ${stampClass}">${esc(h.source)}</span></div>
     </a>
     ${cal}
   </article>`;

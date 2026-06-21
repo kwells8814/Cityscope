@@ -8,9 +8,11 @@ services:
     startCommand: uvicorn cityscope.api.app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: CITYSCOPE_LIVE_RSS
-        value: "false"        # flip to true for real alt-weekly feeds (no keys)
+        value: "true"         # real alt-weekly feeds (no keys needed)
       - key: CITYSCOPE_LIVE_GEOCODE
-        value: "false"        # flip to true for real GPS reverse-geocoding (no keys)
+        value: "true"         # real GPS reverse-geocoding (no keys needed)
+      - key: CITYSCOPE_LIVE_BLUESKY
+        value: "true"         # real Bluesky chatter (no keys, no approval)
       - key: CITYSCOPE_LIVE_REDDIT
         value: "false"        # needs the REDDIT_* secrets below to be set
       - key: CITYSCOPE_LOG_LEVEL

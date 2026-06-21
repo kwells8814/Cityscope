@@ -46,16 +46,28 @@ paper name + URL; paste new entries there in the same format:
 ```
 Then restart the app.
 
-## B. Reddit (apply for free personal access)
+## B. Bluesky (real people, no keys, no approval)
 
-See `reddit_api_application.md` for a ready-to-fill application. The free tier is
-intended for personal, non-commercial, low-volume use — which is what this is.
-Once approved, set the Reddit env vars and `CITYSCOPE_LIVE_REDDIT=true`, and the
-app auto-discovers subreddits for ANY city (no per-city setup needed).
+Bluesky is the "boots on the ground" source — real people posting informal,
+timely local chatter, the texture Reddit used to provide. Unlike Reddit, it's
+genuinely open: no developer portal, no API key, no approval process. The app
+uses Bluesky's PUBLIC search endpoint, which needs no authentication at all.
 
-Reddit's subreddit discovery already handles nicknames and any city name, so
-approval instantly unlocks broad coverage — but the app works fine on RSS alone
-while you wait (or if it's declined).
+Turn it on by setting `CITYSCOPE_LIVE_BLUESKY=true` (already enabled in the
+Render deploy config). No keys to obtain, nothing to apply for. The app searches
+public posts mentioning the city + event terms and runs them through the same
+classifier as every other source.
+
+This is the practical answer to Reddit's locked-down API: same kind of content,
+zero friction.
+
+## C. Reddit (effectively closed as of 2026)
+
+Reddit disabled self-serve app creation in late 2025 (the "Responsible Builder
+Policy"), leaving the prefs/apps page in a broken state that returns errors. For
+now, Reddit is not a viable source. The code path remains (set the REDDIT_* vars
+and `CITYSCOPE_LIVE_REDDIT=true` if access ever opens up), but don't count on it.
+Bluesky (above) is the replacement.
 
 ## Reality check on coverage
 

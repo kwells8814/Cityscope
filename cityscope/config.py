@@ -74,6 +74,7 @@ class Settings:
     use_live_reddit: bool = _env_bool("CITYSCOPE_LIVE_REDDIT", False)
     use_live_rss: bool = _env_bool("CITYSCOPE_LIVE_RSS", False)
     use_live_geocode: bool = _env_bool("CITYSCOPE_LIVE_GEOCODE", False)
+    use_live_bluesky: bool = _env_bool("CITYSCOPE_LIVE_BLUESKY", False)
 
     # caching
     cache_ttl_happenings: int = _env_int("CITYSCOPE_CACHE_TTL", 300)        # 5 min

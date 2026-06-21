@@ -21,12 +21,14 @@ from .db import repository as repo
 from .sources.base import all_sources
 from .sources.reddit_source import register_reddit
 from .sources.rss_source import register_rss
+from .sources.bluesky_source import register_bluesky
 
 logger = get_logger("orchestrator")
 
 # register sources once on import
 register_reddit()
 register_rss()
+register_bluesky()
 
 _happenings_cache = get_cache()
 
@@ -95,7 +97,12 @@ def _build_result(city, region) -> CityResult:
 
     contributing = [r for r in reports if r["count"] > 0]
     reddit_rep = next((r for r in reports if r["source"] == "reddit"), None)
-    if len(contributing) == 1 and reddit_rep and reddit_rep["status"] == "quiet":
+    rss_rep = next((r for r in reports if r["source"] == "rss"), None)
+    # "Quiet" means the city is genuinely thin: Reddit is quiet AND there's no
+    # real local paper contributing. Bluesky is a universal source, so it alone
+    # doesn't lift a city out of "quiet" — it's not a signal of local depth.
+    rss_contributing = bool(rss_rep and rss_rep["count"] > 0)
+    if reddit_rep and reddit_rep["status"] == "quiet" and not rss_contributing:
         status, note = "quiet", reddit_rep["note"]
     else:
         status = "ok"
