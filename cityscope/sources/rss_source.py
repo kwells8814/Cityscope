@@ -128,24 +128,42 @@ class RSSSource(Source):
         feeds = get_city_feeds(key)
         if not feeds:
             return FetchResult(self.name, [], "none",
-                               f"No local paper feed for {city} yet.")
-        paper, url = feeds[0]
-        if settings.use_live_rss:
-            try:
-                entries = _parse_feed(url)
-            except Exception as exc:
-                logger.warning("RSS fetch failed for %s: %s", city, exc)
-                return FetchResult(self.name, [], "error",
-                                   f"{paper} feed unavailable.")
-        elif settings.demo_mode:
-            entries = _mock_entries(city, paper)
-        else:
+                               f"No local feeds for {city} yet.")
+
+        if not settings.use_live_rss and not settings.demo_mode:
             # production with RSS off: contribute nothing (no fake data)
-            return FetchResult(self.name, [], "skipped", "Local paper is off.")
-        posts = [_to_post(e, i, city, paper) for i, e in enumerate(entries)]
-        return FetchResult(self.name, posts, "ok" if posts else "none",
-                           f"From {paper}." if posts else f"{paper} had nothing.",
-                           {"papers": [paper]})
+            return FetchResult(self.name, [], "skipped", "Local feeds are off.")
+
+        all_posts = []
+        used_papers = []
+        errors = []
+        idx = 0
+        for paper, url in feeds:
+            if settings.use_live_rss:
+                try:
+                    entries = _parse_feed(url)
+                except Exception as exc:
+                    logger.warning("RSS fetch failed for %s (%s): %s",
+                                   city, paper, exc)
+                    errors.append(paper)
+                    continue
+            else:  # demo mode
+                entries = _mock_entries(city, paper)
+            if entries:
+                for e in entries:
+                    all_posts.append(_to_post(e, idx, city, paper))
+                    idx += 1
+                used_papers.append(paper)
+
+        if not all_posts:
+            note = ("Feeds unavailable." if errors
+                    else "Local feeds had nothing.")
+            status = "error" if errors else "none"
+            return FetchResult(self.name, [], status, note, {"papers": []})
+
+        note = "From " + ", ".join(used_papers) + "."
+        return FetchResult(self.name, all_posts, "ok", note,
+                           {"papers": used_papers, "errors": errors})
 
 
 def register_rss():

@@ -50,12 +50,12 @@ _UA = "cityscope-feed-discovery/0.2 (+personal project)"
 # These are guesses to *try*; discovery verifies them, so a wrong guess just
 # gets skipped. Add cities/domains freely — that's the whole point.
 KNOWN_PUBLICATIONS = {
-    "austin":      ["austinchronicle.com"],
-    "chicago":     ["chicagoreader.com"],
+    "austin":      ["austinchronicle.com", "do512.com"],
+    "chicago":     ["chicagoreader.com", "do312.com"],
     "asheville":   ["mountainx.com", "mtnxhost.net"],
     "durham":      ["indyweek.com"],
-    "portland":    ["wweek.com"],            # Portland, OR
-    "seattle":     ["thestranger.com"],
+    "portland":    ["wweek.com", "pdxpipeline.com"],   # Portland, OR
+    "seattle":     ["thestranger.com", "everout.com"],
     "neworleans":  ["nola.com"],
     "pittsburgh":  ["pghcitypaper.com"],
     "savannah":    ["connectsavannah.com"],

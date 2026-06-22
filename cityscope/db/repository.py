@@ -75,12 +75,25 @@ _FALLBACK_FEEDS = {
     "spokane":    ("Pacific NW Inlander", "https://www.inlander.com/feed/"),
 }
 
+# Event-calendar feeds — dedicated "things to do" sites, distinct from
+# newspapers. These are closer to the goal (lists of upcoming events). Seeded
+# conservatively; expand/verify with the rss_discovery tool on a networked
+# machine. Merged with _FALLBACK_FEEDS per city by get_city_feeds().
+_EVENT_FEEDS = {
+    "austin":     [("Do512", "https://do512.com/feed")],
+}
+
 
 def get_city_feeds(city_key: str) -> list[tuple[str, str]]:
-    """Return [(paper, feed_url), ...] for a city."""
+    """Return [(source_name, feed_url), ...] for a city — newspaper feed(s)
+    plus any event-calendar feeds."""
     if not db_enabled():
+        feeds = []
         hit = _FALLBACK_FEEDS.get(city_key)
-        return [hit] if hit else []
+        if hit:
+            feeds.append(hit)
+        feeds.extend(_EVENT_FEEDS.get(city_key, []))
+        return feeds
     from .models import CityFeed
     with session_scope() as s:
         rows = (s.query(CityFeed)
