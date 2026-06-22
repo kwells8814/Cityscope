@@ -47,20 +47,20 @@ def get_city_aliases(city_key: str) -> list[str]:
 _FALLBACK_FEEDS = {
     # Existing (Austin path corrected to standard /feed/ — verified live 2026)
     "austin":     ("Austin Chronicle", "https://www.austinchronicle.com/feed/"),
-    "portland":   ("Willamette Week", "https://www.wweek.com/feed/"),
+    "portland":   ("Willamette Week", "https://wweek-feeds.partner.nile.works/api/v1/feeds/rss/"),
     "nyc":        ("The Village Voice", "https://www.villagevoice.com/feed/"),
     "chicago":    ("Chicago Reader", "https://chicagoreader.com/feed/"),
-    "seattle":    ("The Stranger", "https://www.thestranger.com/feeds/"),
+    "seattle":    ("The Stranger", "https://www.thestranger.com/feed/"),
     "asheville":  ("Mountain Xpress", "https://mountainx.com/feed/"),
     "durham":     ("INDY Week", "https://indyweek.com/feed/"),
     "savannah":   ("Connect Savannah", "https://www.connectsavannah.com/feed/"),
-    "neworleans": ("Gambit", "https://www.nola.com/gambit/feed/"),
+    "neworleans": ("Gambit", "http://www.nola.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc&k[]=#topstory"),
     "pittsburgh": ("Pittsburgh City Paper", "https://www.pghcitypaper.com/feed/"),
-    "boise":      ("Boise Weekly", "https://www.boiseweekly.com/feed/"),
+    "boise":      ("Boise Weekly", "https://www.idahopress.com/search/?f=rss&t=article&c=boiseweekly&l=50&s=start_time&sd=desc"),
     # New cities — Voice Media / New Times family, standard /feed/ path
     "losangeles": ("LA Weekly", "https://www.laweekly.com/feed/"),
     "denver":     ("Westword", "https://www.westword.com/feed/"),
-    "nashville":  ("Nashville Scene", "https://www.nashvillescene.com/feed/"),
+    "nashville":  ("Nashville Scene", "http://www.nashvillescene.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc&k[]=#topstory"),
     "phoenix":    ("Phoenix New Times", "https://www.phoenixnewtimes.com/feed/"),
     "dallas":     ("Dallas Observer", "https://www.dallasobserver.com/feed/"),
     "houston":    ("Houston Press", "https://www.houstonpress.com/feed/"),
@@ -72,7 +72,7 @@ _FALLBACK_FEEDS = {
     "lasvegas":   ("Las Vegas Weekly", "https://lasvegasweekly.com/feeds/headlines/"),
     "memphis":    ("Memphis Flyer", "https://www.memphisflyer.com/feed/"),
     "sanantonio": ("San Antonio Current", "https://www.sacurrent.com/feed/"),
-    "spokane":    ("Pacific NW Inlander", "https://www.inlander.com/feed/"),
+    "spokane":    ("Pacific NW Inlander", "http://www.inlander.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc&k[]=#topstory"),
 }
 
 # Extra feeds beyond the primary newspaper: event calendars and LOCAL FOOD
@@ -80,8 +80,7 @@ _FALLBACK_FEEDS = {
 # guides). Eater uses a consistent pattern: <city>.eater.com/rss/index.xml.
 # Merged with _FALLBACK_FEEDS per city by get_city_feeds().
 _EVENT_FEEDS = {
-    "austin":      [("Do512", "https://do512.com/feed"),
-                    ("Eater Austin", "https://austin.eater.com/rss/index.xml")],
+    "austin":      [("Eater Austin", "https://austin.eater.com/rss/index.xml")],
     "chicago":     [("Eater Chicago", "https://chicago.eater.com/rss/index.xml")],
     "houston":     [("Eater Houston", "https://houston.eater.com/rss/index.xml")],
     "dallas":      [("Eater Dallas", "https://dallas.eater.com/rss/index.xml")],
@@ -94,7 +93,6 @@ _EVENT_FEEDS = {
     "detroit":     [("Eater Detroit", "https://detroit.eater.com/rss/index.xml")],
     "miami":       [("Eater Miami", "https://miami.eater.com/rss/index.xml")],
     "nashville":   [("Eater Nashville", "https://nashville.eater.com/rss/index.xml")],
-    "sanantonio":  [("Eater San Antonio", "https://sanantonio.eater.com/rss/index.xml")],
 }
 
 

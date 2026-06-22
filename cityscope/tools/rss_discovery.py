@@ -14,8 +14,15 @@ the build sandbox. It uses stdlib only (urllib + a tiny HTML scan); feedparser
 is used if available for more robust verification.
 
 USAGE (command line):
+    # Verify every feed the APP actually uses (newspapers + food feeds).
+    # This always stays in sync with repository.py — use this for a health check:
+    python -m cityscope.tools.rss_discovery --verify
+
+    # Discover a feed for one publication domain:
     python -m cityscope.tools.rss_discovery "Asheville" mountainx.com
-    python -m cityscope.tools.rss_discovery --seed     # discover for all known cities
+
+    # Discover feeds for the tool's built-in candidate list:
+    python -m cityscope.tools.rss_discovery --seed
 
 The --seed mode reads candidate publication domains from KNOWN_PUBLICATIONS
 below, discovers + verifies feeds, and prints SQL you can run to populate the
@@ -156,6 +163,48 @@ def discover_feed(domain):
     return None, 0
 
 
+def _app_feeds():
+    """Pull the feeds the APP actually uses, so verification can never drift
+    out of sync with what's deployed. Returns [(city_key, paper, url), ...]
+    covering newspaper feeds AND event/food feeds."""
+    out = []
+    try:
+        from ..db.repository import _FALLBACK_FEEDS, _EVENT_FEEDS
+    except Exception as exc:
+        print(f"(could not import app feeds: {exc})", file=sys.stderr)
+        return out
+    for city_key, (paper, url) in _FALLBACK_FEEDS.items():
+        out.append((city_key, paper, url))
+    for city_key, feeds in _EVENT_FEEDS.items():
+        for paper, url in feeds:
+            out.append((city_key, paper, url))
+    return out
+
+
+def verify_app_feeds():
+    """Check every feed the app uses and report which return articles.
+    This is the in-sync replacement for guessing: it tests the real URLs."""
+    feeds = _app_feeds()
+    print(f"Verifying {len(feeds)} feeds the app actually uses...\n",
+          file=sys.stderr)
+    ok, dead = [], []
+    for city_key, paper, url in feeds:
+        n = _verify_feed(url)
+        if n >= 3:
+            print(f"  ✓ {city_key:12} {paper:22} {n} items", file=sys.stderr)
+            ok.append((city_key, paper, url, n))
+        else:
+            print(f"  ✗ {city_key:12} {paper:22} DEAD/empty -> {url}",
+                  file=sys.stderr)
+            dead.append((city_key, paper, url))
+    print(f"\n-- {len(ok)} live, {len(dead)} dead --", file=sys.stderr)
+    if dead:
+        print("\nDEAD FEEDS (fix or remove from repository.py):")
+        for city_key, paper, url in dead:
+            print(f"  {city_key}: {paper} -> {url}")
+    return ok, dead
+
+
 def discover_for_city(city_key, domains=None):
     """Try each candidate domain for a city; return the first working feed."""
     domains = domains or KNOWN_PUBLICATIONS.get(city_key, [])
@@ -186,6 +235,11 @@ def _sql_for(result):
 def main(argv):
     write = "--write" in argv
     argv = [a for a in argv if a != "--write"]
+
+    if argv and argv[0] == "--verify":
+        # Verify the feeds the app ACTUALLY uses (always in sync, incl. food).
+        verify_app_feeds()
+        return
 
     if argv and argv[0] == "--seed":
         results = []

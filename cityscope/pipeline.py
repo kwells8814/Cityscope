@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import time
+import html
 from typing import Optional
 
 from .config import settings
@@ -29,6 +30,14 @@ _GEM_HINTS = [
     "hidden gem", "underrated", "secret", "no sign", "unmarked", "nobody knows",
     "hole in the wall", "tiny", "off the beaten", "no website", "feels like a secret",
     "best-kept",
+    # Nonsense-style underground / rule-of-three weirdness: unusual venues,
+    # one-off site-specific happenings, DIY, immersive multi-activity events.
+    "warehouse", "loft", "rooftop", "basement", "abandoned", "undisclosed",
+    "immersive", "site-specific", "one night only", "one-night", "diy",
+    "underground", "guerrilla", "guerilla", "pop-up", "popup", "speakeasy",
+    "invite only", "byob", "after-hours", "afterhours", "experimental",
+    "interactive", "in a parking lot", "in an alley", "secret location",
+    "address tba", "location tba", "dm for", "you won't believe", "weird",
 ]
 _NEWS_HINTS = [
     "just went up", "new mural", "peaking", "emergence", "reported",
@@ -174,12 +183,47 @@ def classify(post: RawPost) -> tuple[str, float]:
     return classify_keyword(post)
 
 
+_VENUE_RE = re.compile(
+    r"\b(?:at|@)\s+(?:the\s+)?"
+    r"([A-Z][A-Za-z0-9'&.]+(?:\s+[A-Z][A-Za-z0-9'&.]+){0,3})"
+    r"(?:\s+(?:Theatre|Theater|Hall|Bar|Club|Lounge|Gallery|Bottle|Room|"
+    r"Stage|Arena|Park|Bowl|Center|Centre|Cafe|Tavern|Saloon|Pub|Brewery))?"
+)
+# Venue suffixes that strongly signal a real place name.
+_VENUE_SUFFIX = ("theatre", "theater", "hall", "bar", "club", "lounge", "gallery",
+                 "bottle", "room", "stage", "arena", "bowl", "tavern", "brewery",
+                 "saloon", "ballroom", "amphitheater", "amphitheatre")
+
+
+def _extract_venue(text: str) -> Optional[str]:
+    """Pull a likely venue name from 'at the Empty Bottle' / '@ Metro' phrasing.
+    Returns a clean venue string or None."""
+    for m in _VENUE_RE.finditer(text):
+        cand = m.group(1).strip()
+        # Trim trailing day/time words the regex may have swept in
+        # (e.g. "Empty Bottle Friday" -> "Empty Bottle").
+        words = cand.split()
+        while words and words[-1].lower() in _DAY_WORDS:
+            words.pop()
+        cand = " ".join(words)
+        if not cand:
+            continue
+        low = cand.lower()
+        if low in _DAY_WORDS or low in ("the", "a", "an"):
+            continue
+        full = m.group(0).lower()
+        if any(s in full for s in _VENUE_SUFFIX) or len(cand.split()) >= 2:
+            return cand
+    return None
+
+
 def _extract(post: RawPost) -> dict:
-    text = f"{post.title} {post.body}"
+    text = _clean_html(f"{post.title} {post.body}")
     t = text.lower()
     time_m = _TIME_RE.search(text)
     day = next((w for w in _DAY_WORDS if w in t), None)
     price_m = _PRICE_RE.search(text)
+    venue = _extract_venue(text)
     parts = []
     if day:
         parts.append(day.title())
@@ -187,6 +231,7 @@ def _extract(post: RawPost) -> dict:
         parts.append(time_m.group(1).lower())
     return {
         "when": " ".join(parts) if parts else None,
+        "venue": venue,
         "price": price_m.group(0).lower() if price_m else None,
         "is_free": bool(price_m and "free" in price_m.group(0).lower()),
     }
@@ -194,19 +239,27 @@ def _extract(post: RawPost) -> dict:
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
-_ENTITIES = {"&amp;": "&", "&#039;": "'", "&#39;": "'", "&quot;": '"',
-             "&nbsp;": " ", "&ldquo;": '"', "&rdquo;": '"',
-             "&lsquo;": "'", "&rsquo;": "'", "&mdash;": "—", "&ndash;": "–",
-             "&hellip;": "…", "&lt;": "<", "&gt;": ">"}
 
 
 def _clean_html(text: str) -> str:
-    """Strip HTML tags/entities and collapse whitespace — RSS bodies are full
-    of <figure>/<img> markup we don't want in a summary."""
+    """Strip HTML tags and decode entities — RSS titles and bodies are full of
+    <i>/<em>/<figure> markup and &amp;-style entities we don't want to display."""
+    if not text:
+        return ""
+    # Decode entities first (so &lt;i&gt; becomes <i>), then strip tags, then
+    # decode again in case stripping exposed more, then collapse whitespace.
+    text = html.unescape(text)
     text = _TAG_RE.sub(" ", text)
-    for ent, char in _ENTITIES.items():
-        text = text.replace(ent, char)
+    text = html.unescape(text)
     return _WS_RE.sub(" ", text).strip()
+
+
+def _summarize(post: RawPost) -> str:
+    body = _clean_html(post.body)
+    if not body:
+        return _clean_html(post.title)
+    first = re.split(r"(?<=[.!?])\s", body)[0]
+    return first if len(first) <= 160 else first[:157] + "..."
 
 
 def _summarize(post: RawPost) -> str:
@@ -226,7 +279,12 @@ def _rank_score(post: RawPost, category: str, confidence: float) -> float:
         recency = max(0.1, 1 - age_hours / 120)
     else:
         recency = max(0.4, 1 - age_hours / 720)
-    return round(engagement * recency * confidence, 1)
+    score = engagement * recency * confidence
+    # Hidden gems are the point of the app — surface the off-the-radar weird
+    # stuff above routine listings. Boost gems so they don't get buried.
+    if category == "gem":
+        score *= 1.5
+    return round(score, 1)
 
 
 def _source_label(post: RawPost) -> str:
@@ -250,9 +308,10 @@ def process(posts, categories=None, min_confidence: Optional[float] = None) -> l
             id=post.id,
             category=category,
             category_label=CATEGORY_LABELS[category],
-            title=post.title,
+            title=_clean_html(post.title) or post.title,
             summary=_summarize(post),
             when=ex["when"],
+            venue=ex["venue"],
             price=ex["price"],
             is_free=ex["is_free"],
             source=_source_label(post),

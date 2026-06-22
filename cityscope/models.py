@@ -38,6 +38,7 @@ class Happening:
     title: str
     summary: str
     when: Optional[str]
+    venue: Optional[str]
     price: Optional[str]
     is_free: bool
     source: str

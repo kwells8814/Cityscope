@@ -208,6 +208,7 @@
   .pill{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:500;padding:3px 8px;
     border:1px solid var(--line);border-radius:3px;color:var(--ink-soft);display:inline-flex;align-items:center;gap:5px}
   .pill.when{border-color:var(--ink);color:var(--ink);font-weight:700}
+  .pill.venue{border-color:var(--amber);color:var(--amber);font-weight:700}
   .pill.free{background:var(--teal);color:var(--on-accent);border-color:var(--teal)}
   .live{display:inline-flex;align-items:center;gap:6px}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);position:relative}
@@ -468,6 +469,7 @@ const ORIGIN_LABEL={reddit:"Reddit",rss:"Local paper",bluesky:"Bluesky"};
 function cardHTML(h,idx){
   const pills=[];
   if(h.when) pills.push(`<span class="pill when">${isTonight(h)?`<span class="live"><span class="dot"></span>${esc(h.when)}</span>`:esc(h.when)}</span>`);
+  if(h.venue) pills.push(`<span class="pill venue">${esc(h.venue)}</span>`);
   if(h.is_free) pills.push(`<span class="pill free">FREE</span>`);
   else if(h.price) pills.push(`<span class="pill">${esc(h.price)}</span>`);
   if(h.origin==="reddit" && h.score) pills.push(`<span class="pill">▲ ${h.score}</span>`);
