@@ -18,13 +18,20 @@ def test_mock_is_deterministic():
     assert [p.id for p in a] == [p.id for p in b]
 
 
-def test_source_fetch_mock_mode():
-    # default settings: live bluesky off -> mock
+def test_source_off_returns_skipped():
+    # Bluesky off (no live flag) -> contributes nothing, no synthetic data.
     src = BlueskySource()
     res = src.fetch("Seattle")
-    assert res.status == "ok"
-    assert len(res.posts) > 0
+    assert res.status == "skipped"
+    assert res.posts == []
     assert res.source == "bluesky"
+
+
+def test_mock_function_still_available_for_tests():
+    # The mock generator is retained for tests only (not wired into fetch).
+    posts = _search_mock("Seattle")
+    assert len(posts) > 0
+    assert all(p.origin == "bluesky" for p in posts)
 
 
 def test_source_empty_city():

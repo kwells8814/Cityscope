@@ -684,7 +684,30 @@ probeApi();  // sets LIVE=true if the backend is serving us
 
 if("serviceWorker" in navigator){
   window.addEventListener("load",()=>{
-    navigator.serviceWorker.register("sw.js").catch(()=>{ /* offline cache is optional */ });
+    navigator.serviceWorker.register("sw.js").then((reg)=>{
+      // Check for an updated worker every load, and proactively.
+      reg.update().catch(()=>{});
+      reg.addEventListener("updatefound",()=>{
+        const nw = reg.installing;
+        if(!nw) return;
+        nw.addEventListener("statechange",()=>{
+          // A new worker has installed and is ready to control the page.
+          if(nw.state==="installed" && navigator.serviceWorker.controller){
+            // The new SW uses skipWaiting()+clients.claim(); reload once so the
+            // page is served by the fresh worker (prevents stale-tab problems).
+            nw.postMessage && nw.postMessage("skipWaiting");
+          }
+        });
+      });
+    }).catch(()=>{ /* offline cache is optional */ });
+
+    // When the controlling worker changes, reload once to pick up new code.
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange",()=>{
+      if(reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    });
   });
 }
 </script>

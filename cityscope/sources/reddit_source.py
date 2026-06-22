@@ -61,12 +61,7 @@ class RedditSource(Source):
 
         subs = disc["subreddits"]
         if not settings.use_live_reddit:
-            if settings.demo_mode:
-                # explicit demo mode: synthesize sample posts
-                posts = generate_posts(city, subs, disc["candidates"])
-                return FetchResult(self.name, posts, disc["status"],
-                                   disc["note"], {"subreddits": subs})
-            # production: off means honestly empty, no fabricated data
+            # Reddit off -> contribute nothing. No fabricated data, ever.
             return FetchResult(self.name, [], "skipped",
                                "Reddit is off.", {"subreddits": subs})
 

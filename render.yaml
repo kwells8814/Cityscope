@@ -15,8 +15,6 @@ services:
         value: "true"         # real Bluesky chatter (no keys, no approval)
       - key: CITYSCOPE_LIVE_REDDIT
         value: "false"        # Reddit API effectively closed; stays off
-      - key: CITYSCOPE_DEMO_MODE
-        value: "false"        # production: no synthetic data, only real sources
       - key: CITYSCOPE_LOG_LEVEL
         value: "INFO"
       # OPTIONAL Bluesky auth — makes Bluesky search reliable from the server.

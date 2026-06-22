@@ -130,8 +130,8 @@ class RSSSource(Source):
             return FetchResult(self.name, [], "none",
                                f"No local feeds for {city} yet.")
 
-        if not settings.use_live_rss and not settings.demo_mode:
-            # production with RSS off: contribute nothing (no fake data)
+        if not settings.use_live_rss:
+            # RSS off -> contribute nothing. No synthetic data, ever.
             return FetchResult(self.name, [], "skipped", "Local feeds are off.")
 
         all_posts = []
@@ -139,16 +139,13 @@ class RSSSource(Source):
         errors = []
         idx = 0
         for paper, url in feeds:
-            if settings.use_live_rss:
-                try:
-                    entries = _parse_feed(url)
-                except Exception as exc:
-                    logger.warning("RSS fetch failed for %s (%s): %s",
-                                   city, paper, exc)
-                    errors.append(paper)
-                    continue
-            else:  # demo mode
-                entries = _mock_entries(city, paper)
+            try:
+                entries = _parse_feed(url)
+            except Exception as exc:
+                logger.warning("RSS fetch failed for %s (%s): %s",
+                               city, paper, exc)
+                errors.append(paper)
+                continue
             if entries:
                 for e in entries:
                     all_posts.append(_to_post(e, idx, city, paper))

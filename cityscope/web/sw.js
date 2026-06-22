@@ -7,7 +7,7 @@
    - API calls (/happenings, /resolve, /health): network-first, never cached.
    Bump CACHE_VERSION when the shell list changes. */
 
-const CACHE_VERSION = "cityscope-v3";
+const CACHE_VERSION = "cityscope-v4";
 const SHELL = [
   "./",
   "./index.html",
@@ -15,6 +15,10 @@ const SHELL = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
 ];
+
+self.addEventListener("message", (event) => {
+  if (event.data === "skipWaiting") self.skipWaiting();
+});
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

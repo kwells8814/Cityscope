@@ -75,10 +75,6 @@ class Settings:
     use_live_rss: bool = _env_bool("CITYSCOPE_LIVE_RSS", False)
     use_live_geocode: bool = _env_bool("CITYSCOPE_LIVE_GEOCODE", False)
     use_live_bluesky: bool = _env_bool("CITYSCOPE_LIVE_BLUESKY", False)
-    # Demo mode: when true, sources that are OFF fall back to synthetic sample
-    # data (useful for offline demos/tests). When false (production default),
-    # an off source contributes NOTHING — the feed only shows real data.
-    demo_mode: bool = _env_bool("CITYSCOPE_DEMO_MODE", False)
 
     # caching
     cache_ttl_happenings: int = _env_int("CITYSCOPE_CACHE_TTL", 300)        # 5 min
