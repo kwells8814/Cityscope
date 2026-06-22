@@ -17,14 +17,22 @@ except Exception:
 pytestmark = pytest.mark.skipif(not HAVE_FASTAPI, reason="fastapi not installed")
 
 
-def test_health():
-    r = client.get("/health")
+def test_status():
+    # /status is the primary endpoint (renamed from /health to dodge ad blockers)
+    r = client.get("/status")
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
     assert "version" in body
     assert "db_enabled" in body
     assert "cache" in body
+
+
+def test_health_alias_still_works():
+    # /health kept as a backward-compatible alias
+    r = client.get("/health")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ok"
 
 
 def test_resolve_zip():

@@ -51,8 +51,9 @@ async def unhandled(request, exc):
                         content={"error": "internal error", "detail": str(exc)})
 
 
-@app.get("/health", response_model=HealthResponse)
-def health():
+@app.get("/status", response_model=HealthResponse)
+@app.get("/health", response_model=HealthResponse)  # legacy alias (may be ad-blocked)
+def status():
     from ..db.engine import db_enabled
     return HealthResponse(
         status="ok",

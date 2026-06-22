@@ -75,12 +75,26 @@ _FALLBACK_FEEDS = {
     "spokane":    ("Pacific NW Inlander", "https://www.inlander.com/feed/"),
 }
 
-# Event-calendar feeds — dedicated "things to do" sites, distinct from
-# newspapers. These are closer to the goal (lists of upcoming events). Seeded
-# conservatively; expand/verify with the rss_discovery tool on a networked
-# machine. Merged with _FALLBACK_FEEDS per city by get_city_feeds().
+# Extra feeds beyond the primary newspaper: event calendars and LOCAL FOOD
+# coverage (Eater city sites — written by local food writers, not Yelp/travel
+# guides). Eater uses a consistent pattern: <city>.eater.com/rss/index.xml.
+# Merged with _FALLBACK_FEEDS per city by get_city_feeds().
 _EVENT_FEEDS = {
-    "austin":     [("Do512", "https://do512.com/feed")],
+    "austin":      [("Do512", "https://do512.com/feed"),
+                    ("Eater Austin", "https://austin.eater.com/rss/index.xml")],
+    "chicago":     [("Eater Chicago", "https://chicago.eater.com/rss/index.xml")],
+    "houston":     [("Eater Houston", "https://houston.eater.com/rss/index.xml")],
+    "dallas":      [("Eater Dallas", "https://dallas.eater.com/rss/index.xml")],
+    "losangeles":  [("Eater LA", "https://la.eater.com/rss/index.xml")],
+    "nyc":         [("Eater NY", "https://ny.eater.com/rss/index.xml")],
+    "seattle":     [("Eater Seattle", "https://seattle.eater.com/rss/index.xml")],
+    "denver":      [("Eater Denver", "https://denver.eater.com/rss/index.xml")],
+    "portland":    [("Eater Portland", "https://pdx.eater.com/rss/index.xml")],
+    "neworleans":  [("Eater New Orleans", "https://nola.eater.com/rss/index.xml")],
+    "detroit":     [("Eater Detroit", "https://detroit.eater.com/rss/index.xml")],
+    "miami":       [("Eater Miami", "https://miami.eater.com/rss/index.xml")],
+    "nashville":   [("Eater Nashville", "https://nashville.eater.com/rss/index.xml")],
+    "sanantonio":  [("Eater San Antonio", "https://sanantonio.eater.com/rss/index.xml")],
 }
 
 

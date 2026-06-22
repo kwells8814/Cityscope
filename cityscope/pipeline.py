@@ -36,9 +36,29 @@ _NEWS_HINTS = [
     "review:", "profile", "press release", "remains", "explores", "is a love letter",
     "obituary", "remembering", "the secret history",
 ]
+# Food/restaurant signals — written by people who live there (alt-weekly food
+# sections, local food blogs), surfaced as their own category.
+_FOOD_HINTS = [
+    "restaurant", "taco", "ramen", "pizza", "bbq", "barbecue", "burger",
+    "sandwich", "noodle", "dumpling", "taqueria", "bakery", "cafe", "coffee",
+    "brunch", "dinner", "lunch", "menu", "chef", "kitchen", "dish", "eat",
+    "eats", "food", "dining", "bar", "brewery", "cocktail", "bites", "bite",
+    "supper", "deli", "diner", "pop-up dinner", "tasting menu", "happy hour",
+    "new spot", "just opened", "soft open", "now serving", "best meal",
+]
 _NOISE_HINTS = [
     "recommendation", "anyone else", "why is", "why even", "rant",
     "best place to buy", "looking for a", "settle the debate", "confused",
+]
+
+# Anti-aggregator / anti-tourist filter. Food content from these sources or with
+# this listicle-style framing is dropped — the goal is LOCAL voice, not Yelp,
+# travel guides, or SEO "best of" roundups.
+_AGGREGATOR_HINTS = [
+    "yelp", "tripadvisor", "trip advisor", "opentable", "best restaurants in",
+    "top 10 restaurants", "top ten restaurants", "where to eat in",
+    "must-try restaurants", "tourist", "travel guide", "bucket list",
+    "ultimate guide", "you must visit", "before you die", "michelin guide",
 ]
 
 # Content-safety blocklist. Items matching these are dropped entirely — not
@@ -55,7 +75,8 @@ _PRICE_RE = re.compile(r"(free|\$\d+|donation|cash only|byob)", re.I)
 _DAY_WORDS = ["today", "tonight", "tomorrow", "monday", "tuesday", "wednesday",
               "thursday", "friday", "saturday", "sunday", "this weekend", "this week"]
 
-CATEGORY_LABELS = {"event": "Events & gigs", "gem": "Hidden gems", "news": "Local happenings"}
+CATEGORY_LABELS = {"event": "Events & gigs", "gem": "Hidden gems",
+                   "news": "Local happenings", "food": "Local eats"}
 
 
 def _count(text: str, hints) -> int:
@@ -64,8 +85,14 @@ def _count(text: str, hints) -> int:
 
 
 def _is_blocked(post: RawPost) -> bool:
-    text = f"{post.title} {post.body}".lower()
-    return any(h in text for h in _BLOCK_HINTS)
+    text = f"{post.title} {post.body} {post.url}".lower()
+    if any(h in text for h in _BLOCK_HINTS):
+        return True
+    # Drop aggregator/tourist food content — we want local voice, not Yelp,
+    # travel guides, or "best restaurants in X" SEO roundups.
+    if any(h in text for h in _AGGREGATOR_HINTS):
+        return True
+    return False
 
 
 _DATE_SIGNAL_RE = re.compile(
@@ -100,6 +127,7 @@ def classify_keyword(post: RawPost) -> tuple[str, float]:
     noise = _count(text, _NOISE_HINTS)
     coverage = _count(text, _COVERAGE_HINTS)
     raw_event = _count(text, _EVENT_HINTS)
+    food = _count(text, _FOOD_HINTS)
     has_date = _has_date_signal(text)
 
     # An "event" must have a real date/time signal. Arts vocabulary alone
@@ -111,6 +139,7 @@ def classify_keyword(post: RawPost) -> tuple[str, float]:
         "event": event_score,
         "gem": _count(text, _GEM_HINTS),
         "news": _count(text, _NEWS_HINTS),
+        "food": food,
     }
     is_question = post.title.strip().endswith("?")
     # Noise checks run FIRST, against raw signals — question-bait and rants
@@ -210,7 +239,7 @@ def process(posts, categories=None, min_confidence: Optional[float] = None) -> l
     """RawPost[] -> ranked Happening[]."""
     if min_confidence is None:
         min_confidence = settings.min_confidence
-    wanted = set(categories) if categories else {"event", "gem", "news"}
+    wanted = set(categories) if categories else {"event", "gem", "news", "food"}
     out = []
     for post in posts:
         category, confidence = classify(post)

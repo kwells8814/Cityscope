@@ -12,7 +12,7 @@ services:
       - key: CITYSCOPE_LIVE_GEOCODE
         value: "true"         # real GPS reverse-geocoding (no keys needed)
       - key: CITYSCOPE_LIVE_BLUESKY
-        value: "true"         # real Bluesky chatter (no keys, no approval)
+        value: "false"        # dormant — thin results; RSS is the live source
       - key: CITYSCOPE_LIVE_REDDIT
         value: "false"        # Reddit API effectively closed; stays off
       - key: CITYSCOPE_LOG_LEVEL

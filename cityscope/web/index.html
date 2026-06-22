@@ -25,7 +25,7 @@
     /* dark-mode neon palette */
     --ink:#EAEAEA; --ink-soft:#9aa0aa;          /* text on dark */
     --paper:#252A34; --paper-2:#2e343f;          /* charcoal bg + grid/surface */
-    --amber:#08D9D6; --teal:#F0A500; --rose:#FF2E63;  /* events / gems / happenings */
+    --amber:#08D9D6; --teal:#F0A500; --rose:#FF2E63; --lime:#7CD957;  /* events / gems / happenings / eats */
     --line:#3a414d; --stamp:#6b7280;             /* borders + postmarks */
     --on-accent:#1b1f27;                          /* dark text on bright cyan/gold */
   }
@@ -181,6 +181,7 @@
   .chip[data-cat="event"][aria-pressed="true"]{background:var(--amber);border-color:var(--amber);color:var(--on-accent)}
   .chip[data-cat="gem"][aria-pressed="true"]{background:var(--teal);border-color:var(--teal);color:var(--on-accent)}
   .chip[data-cat="news"][aria-pressed="true"]{background:var(--rose);border-color:var(--rose);color:#fff}
+  .chip[data-cat="food"][aria-pressed="true"]{background:var(--lime);border-color:var(--lime);color:var(--on-accent)}
 
   main{max-width:1180px;margin:0 auto;padding:24px clamp(18px,5vw,56px) 80px}
   .count{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink-soft);margin-bottom:20px;letter-spacing:.04em}
@@ -194,11 +195,13 @@
   .card[data-cat="event"]::before{background:var(--amber)}
   .card[data-cat="gem"]::before{background:var(--teal)}
   .card[data-cat="news"]::before{background:var(--rose)}
+  .card[data-cat="food"]::before{background:var(--lime)}
   .kicker{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;
     text-transform:uppercase;letter-spacing:.13em}
   .card[data-cat="event"] .kicker{color:var(--amber)}
   .card[data-cat="gem"] .kicker{color:var(--teal)}
   .card[data-cat="news"] .kicker{color:var(--rose)}
+  .card[data-cat="food"] .kicker{color:var(--lime)}
   .title{font-weight:700;font-size:19px;line-height:1.18;letter-spacing:-.01em}
   .summary{font-family:'Archivo Narrow',sans-serif;font-size:15px;line-height:1.42;color:var(--ink-soft);margin-top:-2px}
   .meta{margin-top:auto;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding-top:8px;border-top:1px dashed var(--line)}
@@ -298,6 +301,7 @@
       <button class="chip" data-cat="event" aria-pressed="false">Events &amp; gigs</button>
       <button class="chip" data-cat="gem" aria-pressed="false">Hidden gems</button>
       <button class="chip" data-cat="news" aria-pressed="false">Local happenings</button>
+      <button class="chip" data-cat="food" aria-pressed="false">Local eats</button>
     </div>
   </div>
   <main>
@@ -317,19 +321,19 @@
    Each call tries the API first and falls back if it's unreachable.
    =================================================================== */
 // "" = same origin (works when the backend serves this page). The app probes
-// /health once on load; if that fails, it switches to embedded-data mode.
+// /status once on load; if that fails, it switches to embedded-data mode.
 let API_BASE = "";
 let LIVE = false;   // set true after a successful health probe
 
 async function probeApi(){
   try{
-    const r = await fetch(`${API_BASE}/health`, {cache:"no-store"});
+    const r = await fetch(`${API_BASE}/status`, {cache:"no-store"});
     LIVE = r.ok;
   }catch(_){ LIVE = false; }
 }
 const DATA = {"seed": {}, "meta": {}, "geo": {"cities": {"Austin": {"lat":30.2672,"lng":-97.7431,"region":"TX"}, "Chicago": {"lat":41.8781,"lng":-87.6298,"region":"IL"}, "Durham": {"lat":35.994,"lng":-78.8986,"region":"NC"}, "Asheville": {"lat":35.5951,"lng":-82.5515,"region":"NC"}, "Seattle": {"lat":47.6062,"lng":-122.3321,"region":"WA"}, "Portland": {"lat":45.5152,"lng":-122.6784,"region":"OR"}}, "zips": {"78701": {"city":"Austin","region":"TX"}, "60601": {"city":"Chicago","region":"IL"}, "27701": {"city":"Durham","region":"NC"}, "28801": {"city":"Asheville","region":"NC"}}}};
 
-const CAT_LABEL = {event:"Events & gigs", gem:"Hidden gems", news:"Local happenings"};
+const CAT_LABEL = {event:"Events & gigs", gem:"Hidden gems", news:"Local happenings", food:"Local eats"};
 let activeCat = "all";
 let current = [];      // current happenings
 let currentMeta = {};  // {city, region, status, note, subreddits}
