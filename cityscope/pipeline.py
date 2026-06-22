@@ -33,10 +33,21 @@ _GEM_HINTS = [
 _NEWS_HINTS = [
     "just went up", "new mural", "peaking", "emergence", "reported",
     "bioluminescent", "just opened", "spotted", "right now", "wildflowers",
+    "review:", "profile", "press release", "remains", "explores", "is a love letter",
+    "obituary", "remembering", "the secret history",
 ]
 _NOISE_HINTS = [
     "recommendation", "anyone else", "why is", "why even", "rant",
     "best place to buy", "looking for a", "settle the debate", "confused",
+]
+
+# Content-safety blocklist. Items matching these are dropped entirely — not
+# shown in any category. Covers adult content and obvious sponsored/SEO spam
+# that slips into newspaper RSS feeds (e.g. "best AI hentai generators").
+_BLOCK_HINTS = [
+    "hentai", "porn", "nsfw", "xxx", "onlyfans", "escort", "camgirl",
+    "sex toy", "adult content", "best ai girlfriend", "nude", "fetish",
+    "casino", "betting odds", "sportsbook promo", "crypto casino",
 ]
 
 _TIME_RE = re.compile(r"\b(\d{1,2}(?::\d{2})?\s?(?:am|pm))\b", re.I)
@@ -52,8 +63,15 @@ def _count(text: str, hints) -> int:
     return sum(1 for h in hints if h in t)
 
 
+def _is_blocked(post: RawPost) -> bool:
+    text = f"{post.title} {post.body}".lower()
+    return any(h in text for h in _BLOCK_HINTS)
+
+
 def classify_keyword(post: RawPost) -> tuple[str, float]:
     """Heuristic classifier. Returns (category, confidence)."""
+    if _is_blocked(post):
+        return "blocked", 0.99
     text = f"{post.title} {post.body}"
     noise = _count(text, _NOISE_HINTS)
     scores = {
@@ -105,10 +123,27 @@ def _extract(post: RawPost) -> dict:
     }
 
 
+_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
+_ENTITIES = {"&amp;": "&", "&#039;": "'", "&#39;": "'", "&quot;": '"',
+             "&nbsp;": " ", "&ldquo;": '"', "&rdquo;": '"',
+             "&lsquo;": "'", "&rsquo;": "'", "&mdash;": "—", "&ndash;": "–",
+             "&hellip;": "…", "&lt;": "<", "&gt;": ">"}
+
+
+def _clean_html(text: str) -> str:
+    """Strip HTML tags/entities and collapse whitespace — RSS bodies are full
+    of <figure>/<img> markup we don't want in a summary."""
+    text = _TAG_RE.sub(" ", text)
+    for ent, char in _ENTITIES.items():
+        text = text.replace(ent, char)
+    return _WS_RE.sub(" ", text).strip()
+
+
 def _summarize(post: RawPost) -> str:
-    body = post.body.strip()
+    body = _clean_html(post.body)
     if not body:
-        return post.title
+        return _clean_html(post.title) or post.title
     first = re.split(r"(?<=[.!?])\s", body)[0]
     return first if len(first) <= 160 else first[:157] + "..."
 

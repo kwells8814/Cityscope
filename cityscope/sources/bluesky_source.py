@@ -64,11 +64,17 @@ def _search_live(city: str, region: str | None) -> list[RawPost]:
     """Query the public Bluesky search for city-related posts."""
     posts: list[RawPost] = []
     seen: set[str] = set()
-    # Build a couple of targeted queries; combine city with event terms.
-    queries = [f'"{city}" {term}' for term in _QUERY_TERMS[:3]]
-    queries.insert(0, f'"{city}"')  # a broad one too
+    # Queries from broad to targeted. We keep them simple — the public search
+    # endpoint is fussy about operators, so we avoid 'sort' and heavy quoting.
+    queries = [
+        city,                                  # broadest: just the city name
+        f"{city} tonight",
+        f"{city} this weekend",
+        f"{city} show",
+        f"{city} pop-up",
+    ]
     for q in queries:
-        params = urllib.parse.urlencode({"q": q, "limit": 25, "sort": "latest"})
+        params = urllib.parse.urlencode({"q": q, "limit": 25})
         url = f"{_PUBLIC_API}{_SEARCH_PATH}?{params}"
         try:
             data = _http_get_json(url)
