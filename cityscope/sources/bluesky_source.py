@@ -144,10 +144,15 @@ def _search_live(city: str, region: str | None) -> list[RawPost]:
             "creds_seen": creds_seen,
             "auth_error": _auth_error,
             "queries": [], "raw_total": 0, "errors": []}
+    # Target posts that ANNOUNCE things, not posts that merely mention the city.
+    # A bare "{city}" search returns recaps/opinions ("loved my weekend in X");
+    # pairing the city with event-intent phrases biases toward "what's happening".
     queries = [
-        city,                                  # broadest: just the city name
         f"{city} tonight",
         f"{city} this weekend",
+        f"{city} happening",
+        f"{city} pop-up",
+        f"{city} live music",
     ]
     for q in queries:
         params = urllib.parse.urlencode({"q": q, "limit": 25})
@@ -166,15 +171,48 @@ def _search_live(city: str, region: str | None) -> list[RawPost]:
             if p and p.id not in seen:
                 seen.add(p.id)
                 posts.append(p)
+    diag["kept_after_filter"] = len(posts)
     _last_diag.clear()
     _last_diag.update(diag)
     return posts
+
+
+# Phrases that mark a post as a recap or opinion ("what I did") rather than an
+# announcement ("what's happening"). These get dropped — they're the noise you
+# saw: weekend recaps, nostalgia, hot takes.
+_RECAP_HINTS = [
+    "had a great", "had such", "had so much", "last night was", "last weekend",
+    "was so much fun", "loved", "i miss", "missing", "throwback", "remember when",
+    "used to", "back in", "wish i", "can't wait until next", "should have",
+    "i think", "imo", "hot take", "unpopular opinion", "rant", "honestly",
+    "just got back", "recap", "yesterday i", "this morning i went",
+]
+# Phrases that POSITIVELY mark an announcement — used to keep good posts even if
+# the date classifier is unsure (casual posts often skip explicit dates).
+_ANNOUNCE_HINTS = [
+    "tonight", "tomorrow", "this weekend", "this friday", "this saturday",
+    "this sunday", "happening", "doors", "rsvp", "tickets", "free entry",
+    "pop-up", "popup", "come through", "come out", "join us", "lineup",
+    "starts at", "kicks off", "playing at", "live at", "@ ", " at the ",
+    "don't miss", "going down", "presents", "feat.", "ft.",
+]
+
+
+def _looks_like_announcement(text: str) -> bool:
+    t = text.lower()
+    if any(h in t for h in _RECAP_HINTS):
+        return False
+    return any(h in t for h in _ANNOUNCE_HINTS)
 
 
 def _normalise(item: dict, city: str) -> RawPost | None:
     rec = item.get("record", {}) or {}
     text = (rec.get("text") or "").strip()
     if not text:
+        return None
+    # Drop recaps/opinions; keep only posts that read like announcements.
+    # This is what turns "people talking about the city" into "what's happening".
+    if not _looks_like_announcement(text):
         return None
     author = item.get("author", {}) or {}
     handle = author.get("handle", "unknown")

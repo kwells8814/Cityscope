@@ -7,7 +7,7 @@
      embedded sample data).
    Bump CACHE_VERSION to force clients to pick up new files. */
 
-const CACHE_VERSION = "cityscope-v1";
+const CACHE_VERSION = "cityscope-v2";
 const SHELL = [
   "./",
   "./index.html",
