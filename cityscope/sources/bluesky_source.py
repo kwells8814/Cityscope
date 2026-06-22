@@ -60,10 +60,17 @@ def _http_get_json(url: str) -> dict:
                         retry_on=(RetryableError, urllib.error.URLError, OSError))
 
 
+# Captures the outcome of the most recent live search for diagnostics, surfaced
+# in the /happenings 'detail' so we can see what Bluesky actually returned on
+# the live server (instead of guessing).
+_last_diag: dict = {}
+
+
 def _search_live(city: str, region: str | None) -> list[RawPost]:
     """Query the public Bluesky search for city-related posts."""
     posts: list[RawPost] = []
     seen: set[str] = set()
+    diag = {"queries": [], "raw_total": 0, "errors": []}
     # Queries from broad to targeted. We keep them simple — the public search
     # endpoint is fussy about operators, so we avoid 'sort' and heavy quoting.
     queries = [
@@ -80,12 +87,18 @@ def _search_live(city: str, region: str | None) -> list[RawPost]:
             data = _http_get_json(url)
         except Exception as exc:
             logger.warning("bluesky query failed (%s): %s", q, exc)
+            diag["errors"].append(f"{q}: {type(exc).__name__}: {exc}")
             continue
-        for item in data.get("posts", []):
+        raw = data.get("posts", [])
+        diag["queries"].append({"q": q, "got": len(raw)})
+        diag["raw_total"] += len(raw)
+        for item in raw:
             p = _normalise(item, city)
             if p and p.id not in seen:
                 seen.add(p.id)
                 posts.append(p)
+    _last_diag.clear()
+    _last_diag.update(diag)
     return posts
 
 
@@ -205,7 +218,10 @@ class BlueskySource(Source):
         status = "ok" if posts else "none"
         note = (f"From Bluesky ({len(posts)} posts)." if posts
                 else "No Bluesky chatter found.")
-        return FetchResult(self.name, posts, status, note, {"query_city": city})
+        detail = {"query_city": city}
+        if settings.use_live_bluesky and _last_diag:
+            detail["diag"] = dict(_last_diag)
+        return FetchResult(self.name, posts, status, note, detail)
 
 
 def register_bluesky():

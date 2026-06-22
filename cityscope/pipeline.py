@@ -68,24 +68,64 @@ def _is_blocked(post: RawPost) -> bool:
     return any(h in text for h in _BLOCK_HINTS)
 
 
+_DATE_SIGNAL_RE = re.compile(
+    r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b"  # weekday
+    r"|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d"  # month + day
+    r"|\b\d{1,2}(:\d{2})?\s?(am|pm)\b"                     # clock time
+    r"|\btonight\b|\btoday\b|\btomorrow\b|\bthis (week|weekend)\b"
+    r"|\bnext (week|weekend|month)\b|\bdoors\b"
+    r"|\bthrough\b\s+\w+\s+\d|\b\d{1,2}/\d{1,2}\b",
+    re.I,
+)
+
+# Words that strongly indicate coverage/criticism rather than an upcoming event.
+_COVERAGE_HINTS = [
+    "review:", "review ", "remains", "explores", "is a love letter", "profile",
+    "obituary", "remembering", "the secret history", "looks back", "retrospective",
+    "interview", "is a delight", "is a", "tackles", "ruminates", "carves",
+    "best ", "ranked", "we tried", "first look", "recap", "oral history",
+]
+
+
+def _has_date_signal(text: str) -> bool:
+    return bool(_DATE_SIGNAL_RE.search(text))
+
+
 def classify_keyword(post: RawPost) -> tuple[str, float]:
     """Heuristic classifier. Returns (category, confidence)."""
     if _is_blocked(post):
         return "blocked", 0.99
     text = f"{post.title} {post.body}"
+    tl = text.lower()
     noise = _count(text, _NOISE_HINTS)
+    coverage = _count(text, _COVERAGE_HINTS)
+    raw_event = _count(text, _EVENT_HINTS)
+    has_date = _has_date_signal(text)
+
+    # An "event" must have a real date/time signal. Arts vocabulary alone
+    # (show, live, series, opening) is NOT enough — that's what was mislabeling
+    # reviews and profiles as events. No date -> it's coverage, not an event.
+    event_score = raw_event if has_date else 0
+
     scores = {
-        "event": _count(text, _EVENT_HINTS),
+        "event": event_score,
         "gem": _count(text, _GEM_HINTS),
         "news": _count(text, _NEWS_HINTS),
     }
     is_question = post.title.strip().endswith("?")
-    best = max(scores, key=scores.get)
-
-    if is_question and scores[best] < 2:
+    # Noise checks run FIRST, against raw signals — question-bait and rants
+    # stay noise even if they contain coverage words like "best".
+    raw_best = max(scores, key=scores.get)
+    if is_question and scores[raw_best] < 2:
         return "noise", 0.9
-    if noise >= 1 and scores[best] <= noise:
+    if noise >= 1 and scores[raw_best] <= noise:
         return "noise", 0.85
+
+    # Coverage language pushes toward "news" (local happenings) over "event".
+    if coverage and not has_date:
+        scores["news"] += coverage
+
+    best = max(scores, key=scores.get)
     if scores[best] == 0:
         return "noise", 0.6
 
