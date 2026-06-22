@@ -99,6 +99,12 @@ class Settings:
     # reddit
     reddit_client_id: str | None = os.environ.get("REDDIT_CLIENT_ID")
     reddit_client_secret: str | None = os.environ.get("REDDIT_CLIENT_SECRET")
+    # Bluesky auth (optional). When set, the Bluesky source makes authenticated
+    # searchPosts calls (more reliable from servers). When unset, it falls back
+    # to the public no-auth endpoint. Both are free; app password is created at
+    # bsky.app Settings -> App Passwords (NOT your main account password).
+    bluesky_handle: str | None = os.environ.get("BLUESKY_HANDLE")
+    bluesky_app_password: str | None = os.environ.get("BLUESKY_APP_PASSWORD")
     reddit_username: str = os.environ.get("REDDIT_USERNAME", "unknown")
     reddit_qpm: int = _env_int("CITYSCOPE_REDDIT_QPM", 50)
 

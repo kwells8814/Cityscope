@@ -36,18 +36,56 @@ from .base import Source, FetchResult, register
 logger = get_logger("source.bluesky")
 
 _PUBLIC_API = "https://public.api.bsky.app"
+_AUTH_API = "https://bsky.social"          # for creating an auth session
 _SEARCH_PATH = "/xrpc/app.bsky.feed.searchPosts"
+_SESSION_PATH = "/xrpc/com.atproto.server.createSession"
 _UA = "cityscope/0.2 (local discovery; non-commercial)"
+
+# Cached auth session (access token) so we don't log in on every request.
+# Bluesky access tokens last ~2 hours; we refresh when expired.
+_session: dict = {"token": None, "did": None, "obtained": 0.0}
+_SESSION_TTL_S = 90 * 60   # refresh well before the ~2h expiry
 
 # Event-ish terms we pair with the city to bias toward "things happening"
 # rather than generic chatter. Kept short; the classifier does the fine sorting.
 _QUERY_TERMS = ["tonight", "this weekend", "pop-up", "show", "market", "live music"]
 
 
-def _http_get_json(url: str) -> dict:
+def _get_auth_token() -> str | None:
+    """Return a valid access token if Bluesky credentials are configured.
+    Logs in (creating a session) and caches the token. Returns None if no
+    credentials are set — caller then falls back to the public endpoint."""
+    handle = settings.bluesky_handle
+    app_password = settings.bluesky_app_password
+    if not handle or not app_password:
+        return None
+    # reuse cached token if still fresh
+    if _session["token"] and (time.time() - _session["obtained"]) < _SESSION_TTL_S:
+        return _session["token"]
+    try:
+        body = json.dumps({"identifier": handle, "password": app_password}).encode()
+        req = urllib.request.Request(
+            f"{_AUTH_API}{_SESSION_PATH}", data=body,
+            headers={"User-Agent": _UA, "Content-Type": "application/json"},
+            method="POST")
+        with urllib.request.urlopen(req, timeout=settings.source_timeout_s) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        _session.update(token=data.get("accessJwt"), did=data.get("did"),
+                        obtained=time.time())
+        logger.info("bluesky: authenticated session established")
+        return _session["token"]
+    except Exception as exc:
+        logger.warning("bluesky auth failed (will try public endpoint): %s", exc)
+        return None
+
+
+
+def _http_get_json(url: str, token: str | None = None) -> dict:
     def _do():
-        req = urllib.request.Request(url, headers={"User-Agent": _UA,
-                                                   "Accept": "application/json"})
+        headers = {"User-Agent": _UA, "Accept": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        req = urllib.request.Request(url, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=settings.source_timeout_s) as resp:
                 return json.loads(resp.read().decode("utf-8"))
@@ -67,12 +105,21 @@ _last_diag: dict = {}
 
 
 def _search_live(city: str, region: str | None) -> list[RawPost]:
-    """Query the public Bluesky search for city-related posts."""
+    """Query Bluesky search for city posts. Uses an authenticated session if
+    credentials are configured (more reliable from servers), otherwise falls
+    back to the public no-auth endpoint."""
     posts: list[RawPost] = []
     seen: set[str] = set()
-    diag = {"queries": [], "raw_total": 0, "errors": []}
-    # Queries from broad to targeted. We keep them simple — the public search
-    # endpoint is fussy about operators, so we avoid 'sort' and heavy quoting.
+    token = _get_auth_token()
+    # Authenticated calls go to the authenticated host; public calls to the
+    # public AppView. Both expose the same searchPosts lexicon.
+    base = _AUTH_API if token else _PUBLIC_API
+    # creds_seen tells us whether the env vars were present at all, separate
+    # from whether the login itself succeeded — pinpoints the failure.
+    creds_seen = bool(settings.bluesky_handle and settings.bluesky_app_password)
+    diag = {"mode": "auth" if token else "public",
+            "creds_seen": creds_seen,
+            "queries": [], "raw_total": 0, "errors": []}
     queries = [
         city,                                  # broadest: just the city name
         f"{city} tonight",
@@ -82,9 +129,9 @@ def _search_live(city: str, region: str | None) -> list[RawPost]:
     ]
     for q in queries:
         params = urllib.parse.urlencode({"q": q, "limit": 25})
-        url = f"{_PUBLIC_API}{_SEARCH_PATH}?{params}"
+        url = f"{base}{_SEARCH_PATH}?{params}"
         try:
-            data = _http_get_json(url)
+            data = _http_get_json(url, token=token)
         except Exception as exc:
             logger.warning("bluesky query failed (%s): %s", q, exc)
             diag["errors"].append(f"{q}: {type(exc).__name__}: {exc}")

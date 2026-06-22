@@ -19,5 +19,11 @@ services:
         value: "false"        # production: no synthetic data, only real sources
       - key: CITYSCOPE_LOG_LEVEL
         value: "INFO"
-      # Set these in the Render dashboard (Environment) if going live with Reddit:
-      # REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USERNAME
+      # OPTIONAL Bluesky auth — makes Bluesky search reliable from the server.
+      # Set these in the Render dashboard (Environment tab), NOT here (secrets):
+      #   BLUESKY_HANDLE         e.g. yourname.bsky.social
+      #   BLUESKY_APP_PASSWORD   created at bsky.app -> Settings -> App Passwords
+      # If left unset, Bluesky uses the public no-auth endpoint as a fallback.
+      #
+      # Reddit (currently closed) if it ever reopens:
+      #   REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USERNAME
