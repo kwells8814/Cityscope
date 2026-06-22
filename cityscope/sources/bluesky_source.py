@@ -43,7 +43,7 @@ _UA = "cityscope/0.2 (local discovery; non-commercial)"
 
 # Cached auth session (access token) so we don't log in on every request.
 # Bluesky access tokens last ~2 hours; we refresh when expired.
-_session: dict = {"token": None, "did": None, "obtained": 0.0}
+_session: dict = {"token": None, "did": None, "pds": None, "obtained": 0.0}
 _SESSION_TTL_S = 90 * 60   # refresh well before the ~2h expiry
 
 # Event-ish terms we pair with the city to bias toward "things happening"
@@ -78,8 +78,11 @@ def _get_auth_token() -> str | None:
             method="POST")
         with urllib.request.urlopen(req, timeout=settings.source_timeout_s) as resp:
             data = json.loads(resp.read().decode("utf-8"))
+        # The session may tell us the account's PDS host via didDoc; authenticated
+        # app.bsky reads work reliably through bsky.social (which proxies to the
+        # AppView), so we default to that for the search host.
         _session.update(token=data.get("accessJwt"), did=data.get("did"),
-                        obtained=time.time())
+                        pds=_AUTH_API, obtained=time.time())
         _auth_error = None
         logger.info("bluesky: authenticated session established")
         return _session["token"]
@@ -130,14 +133,14 @@ def _search_live(city: str, region: str | None) -> list[RawPost]:
     posts: list[RawPost] = []
     seen: set[str] = set()
     token = _get_auth_token()
-    # searchPosts is an app.bsky.* endpoint: ALWAYS query the AppView host
-    # (public.api.bsky.app). When we have a token we attach it as a bearer —
-    # authenticated requests are allowed against the public AppView and avoid
-    # the 403 that unauthenticated server-side requests now get. (bsky.social
-    # is only for creating the session / writes, NOT for searching.)
-    base = _PUBLIC_API
+    # Host selection is the crux: the public AppView (public.api.bsky.app) now
+    # returns 403 for server-side requests even WITH a token. Authenticated
+    # app.bsky reads work when sent to bsky.social (the PDS/entryway), which
+    # proxies to the AppView. So: authed -> bsky.social+token, else public AppView.
+    base = (_session.get("pds") or _AUTH_API) if token else _PUBLIC_API
     creds_seen = bool(settings.bluesky_handle and settings.bluesky_app_password)
     diag = {"mode": "auth" if token else "public",
+            "host": base,
             "creds_seen": creds_seen,
             "auth_error": _auth_error,
             "queries": [], "raw_total": 0, "errors": []}
