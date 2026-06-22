@@ -45,7 +45,8 @@ def get_city_aliases(city_key: str) -> list[str]:
 # --- curated config: RSS feeds ----------------------------------------------
 
 _FALLBACK_FEEDS = {
-    "austin":     ("Austin Chronicle", "https://www.austinchronicle.com/feeds/events/"),
+    # Existing (Austin path corrected to standard /feed/ — verified live 2026)
+    "austin":     ("Austin Chronicle", "https://www.austinchronicle.com/feed/"),
     "portland":   ("Willamette Week", "https://www.wweek.com/feed/"),
     "nyc":        ("The Village Voice", "https://www.villagevoice.com/feed/"),
     "chicago":    ("Chicago Reader", "https://chicagoreader.com/feed/"),
@@ -56,6 +57,22 @@ _FALLBACK_FEEDS = {
     "neworleans": ("Gambit", "https://www.nola.com/gambit/feed/"),
     "pittsburgh": ("Pittsburgh City Paper", "https://www.pghcitypaper.com/feed/"),
     "boise":      ("Boise Weekly", "https://www.boiseweekly.com/feed/"),
+    # New cities — Voice Media / New Times family, standard /feed/ path
+    "losangeles": ("LA Weekly", "https://www.laweekly.com/feed/"),
+    "denver":     ("Westword", "https://www.westword.com/feed/"),
+    "nashville":  ("Nashville Scene", "https://www.nashvillescene.com/feed/"),
+    "phoenix":    ("Phoenix New Times", "https://www.phoenixnewtimes.com/feed/"),
+    "dallas":     ("Dallas Observer", "https://www.dallasobserver.com/feed/"),
+    "houston":    ("Houston Press", "https://www.houstonpress.com/feed/"),
+    "miami":      ("Miami New Times", "https://www.miaminewtimes.com/feed/"),
+    "cleveland":  ("Cleveland Scene", "https://www.clevescene.com/feed/"),
+    "orlando":    ("Orlando Weekly", "https://www.orlandoweekly.com/feed/"),
+    "tampa":      ("Creative Loafing Tampa", "https://www.cltampa.com/feed/"),
+    "detroit":    ("Detroit Metro Times", "https://www.metrotimes.com/feed/"),
+    "lasvegas":   ("Las Vegas Weekly", "https://lasvegasweekly.com/feeds/headlines/"),
+    "memphis":    ("Memphis Flyer", "https://www.memphisflyer.com/feed/"),
+    "sanantonio": ("San Antonio Current", "https://www.sacurrent.com/feed/"),
+    "spokane":    ("Pacific NW Inlander", "https://www.inlander.com/feed/"),
 }
 
 
@@ -81,6 +98,13 @@ _FALLBACK_CITIES = {
     "Savannah": (32.0809, -81.0912, "GA"), "Marfa": (30.3094, -104.0205, "TX"),
     "New Orleans": (29.9511, -90.0715, "LA"), "Pittsburgh": (40.4406, -79.9959, "PA"),
     "Las Vegas": (36.1699, -115.1398, "NV"),
+    "Los Angeles": (34.0522, -118.2437, "CA"), "Denver": (39.7392, -104.9903, "CO"),
+    "Nashville": (36.1627, -86.7816, "TN"), "Phoenix": (33.4484, -112.0740, "AZ"),
+    "Dallas": (32.7767, -96.7970, "TX"), "Houston": (29.7604, -95.3698, "TX"),
+    "Miami": (25.7617, -80.1918, "FL"), "Cleveland": (41.4993, -81.6944, "OH"),
+    "Orlando": (28.5383, -81.3792, "FL"), "Tampa": (27.9506, -82.4572, "FL"),
+    "Detroit": (42.3314, -83.0458, "MI"), "Memphis": (35.1495, -90.0490, "TN"),
+    "San Antonio": (29.4241, -98.4936, "TX"), "Spokane": (47.6588, -117.4260, "WA"),
 }
 _FALLBACK_ZIPS = {
     "78701": ("Austin", "TX"), "97201": ("Portland", "OR"), "04101": ("Portland", "ME"),
