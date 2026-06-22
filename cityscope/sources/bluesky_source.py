@@ -51,14 +51,22 @@ _SESSION_TTL_S = 90 * 60   # refresh well before the ~2h expiry
 _QUERY_TERMS = ["tonight", "this weekend", "pop-up", "show", "market", "live music"]
 
 
+_auth_error: str | None = None  # last auth failure reason, surfaced in diag
+
+
 def _get_auth_token() -> str | None:
     """Return a valid access token if Bluesky credentials are configured.
     Logs in (creating a session) and caches the token. Returns None if no
     credentials are set — caller then falls back to the public endpoint."""
+    global _auth_error
     handle = settings.bluesky_handle
     app_password = settings.bluesky_app_password
     if not handle or not app_password:
+        _auth_error = "no_credentials"
         return None
+    # tolerate common input mistakes: leading @, surrounding spaces
+    handle = handle.strip().lstrip("@")
+    app_password = app_password.strip()
     # reuse cached token if still fresh
     if _session["token"] and (time.time() - _session["obtained"]) < _SESSION_TTL_S:
         return _session["token"]
@@ -72,9 +80,20 @@ def _get_auth_token() -> str | None:
             data = json.loads(resp.read().decode("utf-8"))
         _session.update(token=data.get("accessJwt"), did=data.get("did"),
                         obtained=time.time())
+        _auth_error = None
         logger.info("bluesky: authenticated session established")
         return _session["token"]
+    except urllib.error.HTTPError as exc:
+        # capture the body so we can see Bluesky's actual error message
+        try:
+            detail = exc.read().decode("utf-8")[:200]
+        except Exception:
+            detail = ""
+        _auth_error = f"login_http_{exc.code}: {detail}"
+        logger.warning("bluesky auth failed: %s %s", exc.code, detail)
+        return None
     except Exception as exc:
+        _auth_error = f"login_error: {type(exc).__name__}: {exc}"
         logger.warning("bluesky auth failed (will try public endpoint): %s", exc)
         return None
 
@@ -111,21 +130,21 @@ def _search_live(city: str, region: str | None) -> list[RawPost]:
     posts: list[RawPost] = []
     seen: set[str] = set()
     token = _get_auth_token()
-    # Authenticated calls go to the authenticated host; public calls to the
-    # public AppView. Both expose the same searchPosts lexicon.
-    base = _AUTH_API if token else _PUBLIC_API
-    # creds_seen tells us whether the env vars were present at all, separate
-    # from whether the login itself succeeded — pinpoints the failure.
+    # searchPosts is an app.bsky.* endpoint: ALWAYS query the AppView host
+    # (public.api.bsky.app). When we have a token we attach it as a bearer —
+    # authenticated requests are allowed against the public AppView and avoid
+    # the 403 that unauthenticated server-side requests now get. (bsky.social
+    # is only for creating the session / writes, NOT for searching.)
+    base = _PUBLIC_API
     creds_seen = bool(settings.bluesky_handle and settings.bluesky_app_password)
     diag = {"mode": "auth" if token else "public",
             "creds_seen": creds_seen,
+            "auth_error": _auth_error,
             "queries": [], "raw_total": 0, "errors": []}
     queries = [
         city,                                  # broadest: just the city name
         f"{city} tonight",
         f"{city} this weekend",
-        f"{city} show",
-        f"{city} pop-up",
     ]
     for q in queries:
         params = urllib.parse.urlencode({"q": q, "limit": 25})
