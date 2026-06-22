@@ -492,14 +492,14 @@ function renderFeed(){
   // source note line — now shows ALL contributing sources, not just Reddit
   const note=document.getElementById("srcNote");
   if(m.status==="ok"||m.status==="quiet"){
+    // Show which sources actually contributed, not Reddit subreddits.
     let parts=[];
-    const subs=(m.subreddits||[]).filter(s=>s&&s!=="(curated)");
-    if(subs.length) parts.push(subs.slice(0,3).map(s=>`r/${s}`).join(" "));
-    else if((m.subreddits||[]).includes("(curated)")) parts.push("curated sample");
     (m.sources||[]).forEach(s=>{
-      if(s.label==="Local paper" && s.count>0) parts.push("local paper");
+      if(s.count>0 && s.status==="ok") parts.push(`${esc(s.label)} (${s.count})`);
     });
-    note.innerHTML = `<span class="badge">scanning</span> ${esc(parts.join("  ·  "))}`;
+    note.innerHTML = parts.length
+      ? `<span class="badge">sources</span> ${parts.join("  ·  ")}`
+      : "";
   } else note.innerHTML="";
 
   // ambiguous / none -> panel

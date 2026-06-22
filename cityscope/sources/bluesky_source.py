@@ -177,32 +177,47 @@ def _search_live(city: str, region: str | None) -> list[RawPost]:
     return posts
 
 
-# Phrases that mark a post as a recap or opinion ("what I did") rather than an
-# announcement ("what's happening"). These get dropped — they're the noise you
-# saw: weekend recaps, nostalgia, hot takes.
+# Phrases that mark a post as recap/opinion/chatter rather than an announcement.
 _RECAP_HINTS = [
-    "had a great", "had such", "had so much", "last night was", "last weekend",
+    "had a great", "had such", "had so much", "last night", "last weekend",
     "was so much fun", "loved", "i miss", "missing", "throwback", "remember when",
-    "used to", "back in", "wish i", "can't wait until next", "should have",
+    "used to", "back in", "wish i", "should have", "would be",
     "i think", "imo", "hot take", "unpopular opinion", "rant", "honestly",
-    "just got back", "recap", "yesterday i", "this morning i went",
+    "just got back", "recap", "yesterday", "this morning i", "watching from",
+    "loving it", "any tips", "thinking about", "always be famous", "good morning",
+    "good night", "work in", "moved to", "live in", "from home", "at the gym",
+    "we miss you", "i love", "my favorite", "is a mess", "would always",
 ]
-# Phrases that POSITIVELY mark an announcement — used to keep good posts even if
-# the date classifier is unsure (casual posts often skip explicit dates).
-_ANNOUNCE_HINTS = [
+# Strong event-time markers (a "when").
+_WHEN_HINTS = [
     "tonight", "tomorrow", "this weekend", "this friday", "this saturday",
-    "this sunday", "happening", "doors", "rsvp", "tickets", "free entry",
-    "pop-up", "popup", "come through", "come out", "join us", "lineup",
-    "starts at", "kicks off", "playing at", "live at", "@ ", " at the ",
-    "don't miss", "going down", "presents", "feat.", "ft.",
+    "this sunday", "this thursday", "next friday", "next saturday", "doors at",
+    "doors open", "starts at", "kicks off", "8pm", "9pm", "7pm", "10pm", "6pm",
+    "today at", "happening tonight", "happening this",
+]
+# Event-type / call-to-action markers (a "what" or "come do this").
+_WHAT_HINTS = [
+    "rsvp", "tickets at", "tickets:", "free entry", "free show", "no cover",
+    "pop-up", "popup", "lineup", "live music", "dj set", "art show", "opening",
+    "festival", "market", "block party", "show at", "playing at", "performing",
+    "presented by", "feat.", "featuring", "join us for", "come out to",
+    "don't miss", "tickets on sale", "on stage", "in concert",
+    "warehouse show", "house show", "live set", "gig", "concert", "exhibit",
+    "screening", "open mic", "comedy show", "release party", "listening party",
 ]
 
 
 def _looks_like_announcement(text: str) -> bool:
     t = text.lower()
+    # Recap/opinion/chatter language -> reject outright.
     if any(h in t for h in _RECAP_HINTS):
         return False
-    return any(h in t for h in _ANNOUNCE_HINTS)
+    has_when = any(h in t for h in _WHEN_HINTS)
+    has_what = any(h in t for h in _WHAT_HINTS)
+    # Require BOTH a time signal AND an event/CTA signal — a real announcement
+    # has both ("DJ set tonight at..."). A single casual keyword isn't enough;
+    # that's what was leaking noise through.
+    return has_when and has_what
 
 
 def _normalise(item: dict, city: str) -> RawPost | None:

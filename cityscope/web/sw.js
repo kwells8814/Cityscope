@@ -1,13 +1,13 @@
 /* CityScope service worker.
    Strategy:
-   - App shell (HTML/manifest/icons): cache-first so the app launches instantly
-     and works offline (shows the last-cached shell).
-   - API calls (/happenings, /resolve, /health): network-first, because data
-     should be fresh; falls back to nothing if offline (the app then uses its
-     embedded sample data).
-   Bump CACHE_VERSION to force clients to pick up new files. */
+   - HTML pages: NETWORK-FIRST so the app always loads the latest version when
+     online (falls back to cached shell only when offline). This prevents the
+     "stuck on an old cached page" problem.
+   - Static assets (icons, manifest): cache-first for speed.
+   - API calls (/happenings, /resolve, /health): network-first, never cached.
+   Bump CACHE_VERSION when the shell list changes. */
 
-const CACHE_VERSION = "cityscope-v2";
+const CACHE_VERSION = "cityscope-v3";
 const SHELL = [
   "./",
   "./index.html",
@@ -34,27 +34,45 @@ function isApi(url) {
   return /\/(happenings|resolve|health|ics)\b/.test(url.pathname);
 }
 
+function isHTML(req, url) {
+  return req.mode === "navigate" ||
+         req.destination === "document" ||
+         url.pathname === "/" ||
+         url.pathname.endsWith("/index.html");
+}
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
 
-  // network-first for the API (fresh data), no caching of dynamic results
+  // API: network-first, never cached
   if (isApi(url)) {
     event.respondWith(fetch(req).catch(() => new Response("", { status: 503 })));
     return;
   }
 
-  // cache-first for the app shell / static assets
+  // HTML shell: network-first so updates always show; cache fallback offline
+  if (isHTML(req, url)) {
+    event.respondWith(
+      fetch(req).then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE_VERSION).then((c) => c.put(req, copy)).catch(() => {});
+        return res;
+      }).catch(() => caches.match(req).then((c) => c || caches.match("./index.html")))
+    );
+    return;
+  }
+
+  // Static assets: cache-first for speed
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
       return fetch(req).then((res) => {
-        // cache new static assets opportunistically
         const copy = res.clone();
         caches.open(CACHE_VERSION).then((c) => c.put(req, copy)).catch(() => {});
         return res;
-      }).catch(() => caches.match("./index.html"));
+      });
     })
   );
 });
