@@ -8,6 +8,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#252A34">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<!-- Leaflet for the map view (free, OpenStreetMap, no API key) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="CityScope">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -307,7 +310,9 @@
   </div>
   <main>
     <div class="count" id="count"></div>
+    <button id="viewToggle" style="display:none;margin:0 0 16px;padding:8px 16px;border-radius:999px;border:2px solid var(--amber);background:transparent;color:var(--amber);font-weight:700;cursor:pointer;font-family:inherit">🗺 Map view</button>
     <div class="feed" id="feed"></div>
+    <div id="map" style="display:none;height:60vh;border-radius:14px;overflow:hidden;border:2px solid var(--amber)"></div>
   </main>
 </section>
 
@@ -541,6 +546,10 @@ function renderFeed(){
         : `<div class="panel"><h3>Nothing in this lane</h3><p>Try another filter.</p></div>`;
   feed.innerHTML=html;
 
+  // Show the map toggle whenever we have real results to plot.
+  const toggle=document.getElementById("viewToggle");
+  if(toggle) toggle.style.display = items.length ? "inline-block" : "none";
+
   // wire calendar buttons (event cards only)
   feed.querySelectorAll(".calbtn").forEach(b=>b.addEventListener("click",e=>{
     e.preventDefault(); e.stopPropagation();
@@ -683,6 +692,64 @@ document.getElementById("chips").addEventListener("click",e=>{
   activeCat=b.dataset.cat;
   document.querySelectorAll(".chip").forEach(c=>c.setAttribute("aria-pressed",c===b?"true":"false"));
   renderFeed();
+});
+
+/* ---------- map view ---------- */
+let _map=null, _mapMode=false;
+const CAT_COLORS={event:"#08D9D6",gem:"#F0A500",news:"#FF2E63",food:"#7CD957"};
+
+async function showMap(){
+  const m=currentMeta;
+  const city=m.city||""; if(!city) return;
+  const mapDiv=document.getElementById("map");
+  const feed=document.getElementById("feed");
+  feed.style.display="none"; mapDiv.style.display="block";
+  document.getElementById("viewToggle").innerHTML="☰ List view";
+
+  if(!_map){
+    _map=L.map("map",{zoomControl:true});
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      {attribution:"© OpenStreetMap",maxZoom:19}).addTo(_map);
+  } else { _map.eachLayer(l=>{ if(l instanceof L.Marker) _map.removeLayer(l); }); }
+
+  try{
+    const qs=new URLSearchParams({city}); if(m.region) qs.set("region",m.region);
+    const r=await fetch(`${API_BASE}/map?${qs}`);
+    const data=await r.json();
+    if(data.center && data.center.lat!=null){
+      _map.setView([data.center.lat,data.center.lng],12);
+    }
+    (data.points||[]).forEach(p=>{
+      const color=CAT_COLORS[p.category]||"#fff";
+      const mk=L.circleMarker([p.lat,p.lng],{
+        radius:p.precise?9:6,color:color,fillColor:color,
+        fillOpacity:p.precise?0.9:0.45,weight:2
+      }).addTo(_map);
+      const where=p.venue?`<b>${p.venue}</b><br>`:"";
+      const when=p.when?`${p.when}<br>`:"";
+      const approx=p.precise?"":"<i>(approx. location)</i><br>";
+      mk.bindPopup(`${where}${when}${approx}${p.title}<br><a href="${p.url}" target="_blank">open ↗</a>`);
+    });
+    // honest coverage note
+    const note=document.getElementById("srcNote");
+    if(note) note.innerHTML=`<span class="badge">map</span> ${data.precise} pinned · ${data.approximate} approximate`;
+    setTimeout(()=>_map.invalidateSize(),100);
+  }catch(err){
+    mapDiv.innerHTML=`<div style="padding:20px;color:var(--rose)">Map unavailable right now.</div>`;
+  }
+}
+
+function showList(){
+  document.getElementById("map").style.display="none";
+  document.getElementById("feed").style.display="";
+  document.getElementById("viewToggle").innerHTML="🗺 Map view";
+  renderFeed();
+}
+
+const _vt=document.getElementById("viewToggle");
+if(_vt) _vt.addEventListener("click",()=>{
+  _mapMode=!_mapMode;
+  if(_mapMode) showMap(); else showList();
 });
 
 /* ---------- startup: probe the API, register the PWA service worker ---------- */

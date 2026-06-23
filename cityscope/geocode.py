@@ -18,6 +18,46 @@ from .core.logging_setup import get_logger
 
 logger = get_logger("geocode")
 
+# Forward-geocoding cache: "venue|city" -> (lat, lng) or None (failed).
+# In-memory; resets on redeploy. Keeps us well under Nominatim's rate limits
+# by never looking up the same venue twice in a process.
+_venue_cache: dict[str, tuple[float, float] | None] = {}
+_NOMINATIM = "https://nominatim.openstreetmap.org/search"
+_GEO_UA = "cityscope/0.2 (local discovery; non-commercial)"
+
+
+def geocode_venue(venue: str, city: str, region: str | None = None):
+    """Forward-geocode a venue name within a city -> (lat, lng) or None.
+    Cached. Only runs when live geocoding is enabled; otherwise returns None
+    so the caller falls back to city-center."""
+    if not venue or not city:
+        return None
+    key = f"{venue}|{city}".lower()
+    if key in _venue_cache:
+        return _venue_cache[key]
+    if not settings.use_live_geocode:
+        _venue_cache[key] = None
+        return None
+    q = f"{venue}, {city}"
+    if region:
+        q += f", {region}"
+    params = urllib.parse.urlencode({"q": q, "format": "json", "limit": 1,
+                                     "countrycodes": "us"})
+    url = f"{_NOMINATIM}?{params}"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": _GEO_UA})
+        with urllib.request.urlopen(req, timeout=settings.source_timeout_s) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        if data:
+            latlng = (float(data[0]["lat"]), float(data[0]["lon"]))
+            _venue_cache[key] = latlng
+            return latlng
+    except Exception as exc:
+        logger.warning("venue geocode failed (%s): %s", q, exc)
+    _venue_cache[key] = None
+    return None
+
+
 _CITIES = {
     "Austin": (30.2672, -97.7431, "TX"),
     "Portland": (45.5152, -122.6784, "OR"),

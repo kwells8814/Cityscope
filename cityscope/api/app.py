@@ -65,6 +65,14 @@ def status():
     )
 
 
+@app.get("/feed-health")
+def feed_health_endpoint():
+    """Self-healing feed status: which feeds are cooling (failing) and need a
+    human look. Glance here instead of discovering dead feeds by empty cities."""
+    from ..sources import feed_health
+    return feed_health.snapshot()
+
+
 @app.get("/resolve", response_model=ResolveResponse)
 def resolve(
     city: Optional[str] = None,
@@ -89,7 +97,7 @@ def happenings(
     # optional category filter applied at the edge (keeps core cache category-agnostic)
     if categories:
         wanted = {c.strip().lower() for c in categories.split(",") if c.strip()}
-        valid = {"event", "gem", "news"}
+        valid = {"event", "gem", "news", "food"}
         bad = wanted - valid
         if bad:
             return JSONResponse(status_code=400,
@@ -98,6 +106,57 @@ def happenings(
         payload["happenings"] = [h for h in payload["happenings"]
                                  if h["category"] in wanted]
     return payload
+
+
+@app.get("/map")
+def map_view(
+    city: str = Query(..., min_length=1, description="City name"),
+    region: Optional[str] = Query(None, description="State/region to disambiguate"),
+    nocache: bool = Query(False, description="bypass cache"),
+):
+    """Happenings with coordinates for a map. Venues we can geocode get precise
+    pins; the rest fall back to city center (flagged precise=false) so the map
+    is honest about what's pinpointed vs approximate."""
+    from ..geocode import geocode_venue, _CITIES
+    result = orch.get_happenings(city, region, use_cache=not nocache)
+    payload = result.to_dict()
+    resolved_city = payload.get("city") or city
+
+    # city center fallback
+    center = _CITIES.get(resolved_city)
+    center_lat, center_lng = (center[0], center[1]) if center else (None, None)
+
+    mapped, precise_n, approx_n = [], 0, 0
+    for h in payload.get("happenings", []):
+        lat = lng = None
+        precise = False
+        if h.get("venue"):
+            got = geocode_venue(h["venue"], resolved_city, region)
+            if got:
+                lat, lng, precise = got[0], got[1], True
+        if lat is None:
+            lat, lng = center_lat, center_lng
+        if lat is None:
+            continue  # no city center known; skip from map
+        if precise:
+            precise_n += 1
+        else:
+            approx_n += 1
+        mapped.append({
+            "id": h["id"], "title": h["title"], "category": h["category"],
+            "category_label": h["category_label"], "venue": h.get("venue"),
+            "when": h.get("when"), "url": h["url"],
+            "lat": lat, "lng": lng, "precise": precise,
+        })
+
+    return {
+        "city": resolved_city,
+        "center": {"lat": center_lat, "lng": center_lng},
+        "count": len(mapped),
+        "precise": precise_n,
+        "approximate": approx_n,
+        "points": mapped,
+    }
 
 
 @app.get("/ics")

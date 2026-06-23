@@ -137,15 +137,24 @@ class RSSSource(Source):
         all_posts = []
         used_papers = []
         errors = []
+        skipped_cooling = []
         idx = 0
+        from . import feed_health
         for paper, url in feeds:
+            # Self-healing: skip feeds that have been failing, but let them
+            # retry once per cooldown so they can recover automatically.
+            if feed_health.should_skip(url, paper):
+                skipped_cooling.append(paper)
+                continue
             try:
                 entries = _parse_feed(url)
             except Exception as exc:
                 logger.warning("RSS fetch failed for %s (%s): %s",
                                city, paper, exc)
                 errors.append(paper)
+                feed_health.record_fail(url, paper)
                 continue
+            feed_health.record_ok(url, paper)
             if entries:
                 for e in entries:
                     all_posts.append(_to_post(e, idx, city, paper))
