@@ -7,7 +7,7 @@
    - API calls (/happenings, /resolve, /health): network-first, never cached.
    Bump CACHE_VERSION when the shell list changes. */
 
-const CACHE_VERSION = "cityscope-v9";
+const CACHE_VERSION = "cityscope-v10";
 const SHELL = [
   "./",
   "./index.html",

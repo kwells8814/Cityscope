@@ -707,35 +707,49 @@ async function showMap(){
   document.getElementById("viewToggle").innerHTML="☰ List view";
 
   if(!_map){
-    _map=L.map("map",{zoomControl:true});
+    _map=L.map("map",{zoomControl:true}).setView([39.5,-98.35],4); // default US view
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
       {attribution:"© OpenStreetMap",maxZoom:19}).addTo(_map);
-  } else { _map.eachLayer(l=>{ if(l instanceof L.Marker) _map.removeLayer(l); }); }
+  } else { _map.eachLayer(l=>{ if(l instanceof L.CircleMarker) _map.removeLayer(l); }); }
+
+  // Leaflet renders blank if the container was display:none at init — force a
+  // resize now that it's visible, before doing anything else.
+  setTimeout(()=>_map.invalidateSize(),0);
 
   try{
     const qs=new URLSearchParams({city}); if(m.region) qs.set("region",m.region);
     const r=await fetch(`${API_BASE}/map?${qs}`);
     const data=await r.json();
+    const pts=data.points||[];
     if(data.center && data.center.lat!=null){
       _map.setView([data.center.lat,data.center.lng],12);
     }
-    (data.points||[]).forEach(p=>{
+    const bounds=[];
+    pts.forEach(p=>{
       const color=CAT_COLORS[p.category]||"#fff";
       const mk=L.circleMarker([p.lat,p.lng],{
         radius:p.precise?9:6,color:color,fillColor:color,
         fillOpacity:p.precise?0.9:0.45,weight:2
       }).addTo(_map);
+      bounds.push([p.lat,p.lng]);
       const where=p.venue?`<b>${p.venue}</b><br>`:"";
       const when=p.when?`${p.when}<br>`:"";
       const approx=p.precise?"":"<i>(approx. location)</i><br>";
       mk.bindPopup(`${where}${when}${approx}${p.title}<br><a href="${p.url}" target="_blank">open ↗</a>`);
     });
-    // honest coverage note
+    // fit to the precise pins if we have any spread, else keep city view
+    const precisePts=pts.filter(p=>p.precise).map(p=>[p.lat,p.lng]);
+    if(precisePts.length>=2){ _map.fitBounds(precisePts,{padding:[40,40],maxZoom:15}); }
     const note=document.getElementById("srcNote");
     if(note) note.innerHTML=`<span class="badge">map</span> ${data.precise} pinned · ${data.approximate} approximate`;
-    setTimeout(()=>_map.invalidateSize(),100);
+    // final resize after everything's drawn
+    setTimeout(()=>_map.invalidateSize(),200);
+    if(pts.length===0){
+      note.innerHTML=`<span class="badge">map</span> no mappable locations for ${esc(city)}`;
+    }
   }catch(err){
-    mapDiv.innerHTML=`<div style="padding:20px;color:var(--rose)">Map unavailable right now.</div>`;
+    const note=document.getElementById("srcNote");
+    if(note) note.innerHTML=`<span class="badge">map</span> map data unavailable`;
   }
 }
 

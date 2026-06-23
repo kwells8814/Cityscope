@@ -118,12 +118,19 @@ def map_view(
     pins; the rest fall back to city center (flagged precise=false) so the map
     is honest about what's pinpointed vs approximate."""
     from ..geocode import geocode_venue, _CITIES
+    from ..db.repository import _FALLBACK_CITIES
     result = orch.get_happenings(city, region, use_cache=not nocache)
     payload = result.to_dict()
     resolved_city = payload.get("city") or city
 
-    # city center fallback
-    center = _CITIES.get(resolved_city)
+    # city center fallback — check the full gazetteer first (27 cities), then
+    # the smaller geocode dict, so every covered city has a center.
+    center = None
+    if resolved_city in _FALLBACK_CITIES:
+        lat, lng, _reg = _FALLBACK_CITIES[resolved_city]
+        center = (lat, lng)
+    elif resolved_city in _CITIES:
+        center = (_CITIES[resolved_city][0], _CITIES[resolved_city][1])
     center_lat, center_lng = (center[0], center[1]) if center else (None, None)
 
     mapped, precise_n, approx_n = [], 0, 0
